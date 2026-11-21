@@ -1,0 +1,1350 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="robots" content="noindex, nofollow">
+<title>狩魔組戰績儀表板</title>
+<style>
+/* Layout: one block per question. Inside each block: chart cards → conclusion → numbers → detail. */
+:root {
+  --bg: #f5f4ef;
+  --surface: #ffffff;
+  --ink: #1c1e22;
+  --muted: #666b75;
+  --line: #e2e0d8;
+  --track: #ecebe4;
+  --tint: #e8f0ee;
+  --mark: #f1d88a;
+  --rate: #c2611f;
+  --rank: #2f5fa8;
+  --shadow: rgba(30, 30, 30, .14);
+  --t3: #b5762a; --t4: #4f8a3c; --t5: #8a8f99;
+  --accent: #2c6e69;
+  --pt: #6d55a0;
+  --win: #2c7a4b;
+  --tie: #8a6d12;
+  --loss: #a93636;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121416; --surface: #1c1f23; --ink: #eceae4; --muted: #9ba1ab; --line: #2d3137;
+    --track: #2a2e34; --tint: #1d2a28; --mark: #6b5719; --rate: #f0a060; --accent: #6fb8b0; --pt: #b4a1dc; --win: #63c28a; --tie: #d9b44a; --loss: #e87a7a;
+    --rank: #8fb4ec; --shadow: rgba(0, 0, 0, .5); --t3: #e0a660; --t4: #8ccf74; --t5: #a9aeb7;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121416; --surface: #1c1f23; --ink: #eceae4; --muted: #9ba1ab; --line: #2d3137;
+  --track: #2a2e34; --tint: #1d2a28; --mark: #6b5719; --rate: #f0a060; --accent: #6fb8b0; --pt: #b4a1dc; --win: #63c28a; --tie: #d9b44a; --loss: #e87a7a;
+  --rank: #8fb4ec; --shadow: rgba(0, 0, 0, .5); --t3: #e0a660; --t4: #8ccf74; --t5: #a9aeb7;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 14px/1.5 -apple-system, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+main { max-width: 1040px; margin: 0 auto; display: grid; gap: 14px; min-width: 0; }
+header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 10px 16px; }
+h1 { font-size: 22px; margin: 0; text-wrap: balance; }
+h2 { font-size: 16px; margin: 0; text-wrap: balance; }
+h3 { font-size: 13px; margin: 0; color: var(--muted); font-weight: 500; letter-spacing: .04em; }
+.sub { color: var(--muted); font-size: 13px; }
+.note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.card > .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; margin-bottom: 12px; }
+.panel { border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+.panel-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; }
+.panel-grid.even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.phead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; margin-bottom: 10px; }
+@media (max-width: 760px) { .panel-grid, .panel-grid.even { grid-template-columns: minmax(0, 1fr); } }
+
+/* conclusion */
+.concl { background: var(--tint); border-radius: 8px; padding: 10px 12px; margin: 12px 0; font-size: 13px; line-height: 1.75; }
+.concl .k { display: inline-block; font-size: 12px; font-weight: 600; color: var(--accent); letter-spacing: .1em; margin-right: 8px; }
+.concl .hl { font-weight: 600; font-size: 14px; background: linear-gradient(transparent 58%, var(--mark) 58%); padding: 0 2px; }
+.concl .dt { margin-top: 6px; }
+
+/* timeline combo chart (bars = merit, line = effective rate) */
+.combo { min-width: 0; }
+.combo svg { display: block; max-width: 100%; }
+.combo .gl { stroke: var(--line); stroke-width: 1; }
+.combo .ax { fill: var(--muted); font-size: 11px; font-family: inherit; }
+.combo .vl { fill: var(--ink); font-size: 11px; font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+.combo .bar { fill: var(--accent); opacity: .85; }
+.combo .bar.PT { fill: var(--pt); }
+.combo .rate { fill: none; stroke: var(--rate); stroke-width: 2.5; stroke-linejoin: round; }
+.combo .pt { fill: var(--surface); stroke: var(--rate); stroke-width: 2; }
+.combo .ref { stroke: var(--rate); stroke-width: 1.2; stroke-dasharray: 4 4; opacity: .75; }
+.combo .sep { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.combo .rl { fill: var(--rate); font-size: 11px; font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+.seg.small button { padding: 3px 10px; font-size: 12px; }
+.concl.warn .k { color: var(--loss); }
+
+/* member picker */
+#report { display: grid; gap: 14px; min-width: 0; }
+.cbx { position: relative; flex: 1; min-width: 200px; max-width: 380px; }
+.cbx input { width: 100%; }
+.cbx ul { position: absolute; top: calc(100% + 4px); left: 0; right: 0; max-height: 300px; overflow: auto; margin: 0; padding: 4px; list-style: none;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px var(--shadow); z-index: 20; }
+.cbx li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.cbx li .sub { font-size: 12px; }
+.cbx li.act, .cbx li:hover { background: var(--tint); }
+.cbx li.cur b { color: var(--accent); }
+.cbx li.empty { cursor: default; }
+.cbx li .ok { color: var(--win); }
+/* top-5 team bars */
+.tbars { display: grid; gap: 10px; }
+.tb { display: grid; gap: 4px; }
+.tb .tl { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 13px; }
+.tb .tl .rk { color: var(--muted); font-variant-numeric: tabular-nums; width: 1.2em; }
+.tb .row2 { display: grid; grid-template-columns: 1fr 9.5em; gap: 10px; align-items: center; }
+.tb .trk { height: 12px; background: var(--track); border-radius: 3px; overflow: hidden; }
+.tb .f { height: 100%; border-radius: 3px; }
+.tb .val { text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+.panel-grid.one { grid-template-columns: minmax(0, 1fr); }
+.combo .rk-line { fill: none; stroke: var(--rank); stroke-width: 2.5; stroke-dasharray: 6 4; stroke-linejoin: round; }
+.combo .rk-pt { fill: var(--surface); stroke: var(--rank); stroke-width: 2; }
+.combo .rk-pt.on { fill: var(--rank); }
+.combo .rkl { fill: var(--rank); font-size: 11px; font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+.rbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; }
+.rbar h2 { font-size: 18px; margin: 2px 0; }
+.es-list { margin: 10px 0 14px; padding-left: 1.2em; line-height: 1.8; }
+.tsum { margin-bottom: 4px; }
+.tsum .concl { margin-top: 0; }
+.tsum h3.acts { margin: 14px 0 2px; }
+
+/* scope control */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { font: inherit; color: var(--ink); background: transparent; border: 0; padding: 6px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select, input, .btn { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.btn { cursor: pointer; }
+
+/* diverging exchange-ratio bars (log scale, centred on 1.0) */
+.dv-list { display: grid; gap: 6px; }
+.dv { display: grid; grid-template-columns: minmax(96px, 11em) 1fr 4.2em; gap: 10px; align-items: center; font-size: 12px; }
+.dv .lab { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.dv .lab span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dv .trk { position: relative; height: 12px; background: var(--track); border-radius: 3px; }
+.dv .trk::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--ink); }
+.dv .f { position: absolute; top: 0; bottom: 0; }
+.f.good { background: var(--win); border-radius: 0 3px 3px 0; }
+.f.bad { background: var(--loss); border-radius: 3px 0 0 3px; }
+.dv .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.axis { display: grid; grid-template-columns: minmax(96px, 11em) 1fr 4.2em; gap: 10px; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.axis .ticks { position: relative; height: 14px; }
+.axis .ticks span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+.dot { width: 8px; height: 8px; border-radius: 2px; flex: none; display: inline-block; }
+.dot.PT { background: var(--pt); } .dot.CY { background: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* plain bars */
+.pb, .mb { display: grid; gap: 10px; align-items: center; font-size: 12px; }
+.pb { grid-template-columns: 6.5em 1fr 3.6em; }
+.mb { grid-template-columns: 2em 1fr 9.5em; }
+.pb .trk, .mb .trk { height: 10px; background: var(--track); border-radius: 3px; overflow: hidden; }
+.mb .trk { height: 14px; }
+.pb .f, .mb .f { height: 100%; border-radius: 3px; }
+.pb .val, .mb .val { text-align: right; font-variant-numeric: tabular-nums; }
+.bars { display: grid; gap: 8px; }
+.team-block { display: grid; gap: 6px; }
+.team-block + .team-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.team-name { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
+.team-name .ex { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* stacked outcome bars */
+.st { display: grid; grid-template-columns: 2em 1fr 5.4em; gap: 10px; align-items: center; font-size: 12px; }
+.st .trk { display: flex; height: 16px; border-radius: 3px; overflow: hidden; background: var(--track); }
+.st .seg-good { background: var(--win); } .st .seg-bad { background: var(--loss); opacity: .85; }
+.st .val { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ranked opponent lists */
+ol.rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+ol.rank li { display: grid; grid-template-columns: 1.4em 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; }
+ol.rank .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+ol.rank .meta { display: block; color: var(--muted); font-size: 12px; }
+ol.rank .x { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; padding: 0 8px; border-radius: 99px; font-size: 12px; border: 1px solid currentColor; line-height: 1.6; }
+.tag.small { font-size: 11px; padding: 0 6px; margin-left: 6px; color: var(--muted); }
+
+/* KPI rows */
+.kpi-rows { display: grid; gap: 14px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px 14px; margin-top: 6px; }
+.kpi .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.kpi .l { color: var(--muted); font-size: 12px; }
+.kpi .d { font-size: 11px; margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpi .d span { color: var(--muted); }
+.d.up { color: var(--win); } .d.down { color: var(--loss); } .d.flat { color: var(--muted); }
+
+/* drill-down */
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+details { min-width: 0; }
+summary { cursor: pointer; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+.lv1 { border: 1px solid var(--line); border-radius: 8px; }
+.lv1 + .lv1 { margin-top: 10px; }
+.lv1 > summary { padding: 12px 14px; display: grid; gap: 8px; }
+.lv1 > .body { padding: 0 14px 12px; display: grid; gap: 6px; }
+.sum-top { display: flex; align-items: center; gap: 8px; font-weight: 600; flex-wrap: wrap; }
+.chev { display: inline-block; width: 1em; color: var(--muted); transition: transform .15s; }
+details[open] > summary .chev { transform: rotate(90deg); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chips b { color: var(--ink); font-weight: 600; }
+.lv2 { border-top: 1px solid var(--line); }
+.lv2 > summary { padding: 8px 0; display: grid; grid-template-columns: 1.2em 7.2em 1fr; gap: 8px; align-items: center; font-size: 13px; }
+.lv2 > summary .mini { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-variant-numeric: tabular-nums; }
+.lv2 > .body { padding: 0 0 10px 1.6em; }
+.W { color: var(--win); } .T { color: var(--tie); } .L { color: var(--loss); }
+.ok { color: var(--win); } .no { color: var(--loss); }
+
+.tbl { overflow-x: auto; min-width: 0; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; font-size: 13px; }
+th { color: var(--muted); font-weight: 500; font-size: 12px; }
+.num { text-align: right; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; }
+@media (max-width: 520px) {
+  .dv, .axis { grid-template-columns: 84px 1fr 3.4em; gap: 6px; }
+  .mb { grid-template-columns: 2em 1fr 8em; }
+  .lv2 > summary { grid-template-columns: 1.2em 1fr; }
+  .lv2 > summary .mini { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+</style>
+
+<main>
+<header>
+  <div>
+    <h1>狩魔組戰績儀表板</h1>
+    <div class="sub">周瑜盟・狩魔｜賽季 2026-11-13｜時間為台灣時間</div>
+  </div>
+</header>
+
+<!-- 0. 成員選擇：先找到自己，再看專屬報表 -->
+<section class="card" id="picker">
+  <div class="head"><h2>找到你的報表</h2><span class="sub" id="pkCount"></span></div>
+  <div class="row">
+    <div class="seg small" role="group" aria-label="依門閥篩選" id="mfSeg"></div>
+    <div class="cbx">
+      <input id="nameQ" type="text" role="combobox" aria-expanded="false" aria-controls="mlist" aria-autocomplete="list" autocomplete="off"
+        placeholder="輸入名稱或遊戲名稱，或點開選擇" aria-label="搜尋並選擇成員">
+      <ul id="mlist" role="listbox" aria-label="成員" hidden></ul>
+    </div>
+  </div>
+  <div class="concl" id="cRoster"></div>
+  <p class="note">門閥為名單截圖的數值，照實呈現。連登、貢丸、六道、天使、鮪依使用者確認比對；擱淺為圓圓擱圓圓，大肥為狩魔親尉B。菲菲未加入 LINE，已移除。</p>
+</section>
+
+<!-- 目前檢視的成員與統計區間 -->
+<section class="card rbar" id="rbar">
+  <div>
+    <div class="sub">目前檢視</div>
+    <h2 id="rbName"></h2>
+    <div class="sub" id="rbMeta"></div>
+  </div>
+  <div class="seg" role="group" aria-label="統計區間" id="scopeSeg">
+    <button data-scope="all" aria-pressed="true">全部</button>
+  </div>
+</section>
+
+<!-- 尚未載入戰報的成員 -->
+<section class="card" id="emptyState" hidden>
+  <h2 id="esTitle"></h2>
+  <p class="sub" style="margin:6px 0 0">這位成員的戰報還沒串接。串接後，這裡會顯示和 IU 相同格式的專屬報表：</p>
+  <ul class="es-list">
+    <li>總覽：戰功獲取能力、時間軸（戰功總量與換兵比）</li>
+    <li>戰報分析：隊伍 → 行動 → 戰報，含好打與難打的對手、各隊提醒</li>
+    <li>對手隊伍：常遇對手與兵損來源</li>
+    <li>武將查詢與戰報搜尋</li>
+  </ul>
+  <div class="panel" style="margin-bottom:12px">
+    <div class="phead"><h3>你的戰功排名逐日變化</h3><span class="sub">取自賽季成員資料，已可查看</span></div>
+    <div class="combo" id="esRank"></div>
+  </div>
+  <div class="concl" id="esConcl"></div>
+  <button class="btn" id="esBack" type="button">先看範例：IU 的報表</button>
+</section>
+
+<div id="report">
+<!-- 1. 總覽：戰功獲取能力 -->
+<section class="card">
+  <div class="head"><h2>總覽：戰功獲取能力</h2><span class="sub" id="lbOv"></span></div>
+  <div class="panel" id="timePanel">
+    <div class="phead">
+      <h3>時間軸：戰功總量與換兵比</h3>
+      <div class="seg small" role="group" aria-label="時間軸單位">
+        <button data-tm="day" aria-pressed="true">依日</button>
+        <button data-tm="act" aria-pressed="false">依行動</button>
+      </div>
+    </div>
+    <div class="combo" id="chTime"></div>
+    <div class="legend" style="margin-top:6px" id="tlLegend"></div>
+  </div>
+  <div class="concl" id="cTime"></div>
+  <div class="panel" id="dayPanel" hidden>
+    <div class="phead"><h3>逐日變化：隊伍戰功、換兵比與戰功排名</h3><span class="sub" id="daySub"></span></div>
+    <div class="combo" id="chDay"></div>
+    <div class="legend" style="margin-top:6px" id="dayLegend"></div>
+  </div>
+  <div class="concl" id="cRank" hidden></div>
+  <div class="panel-grid even">
+    <div class="panel">
+      <div class="phead"><h3>戰功來源</h3><span class="sub">依戰報結果</span></div>
+      <div class="bars" id="chMerit"></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><h3>結果與有效</h3><span class="sub">勝負 ≠ 划算</span></div>
+      <div class="dv-list" id="chOutcome"></div>
+      <div class="legend" style="margin-top:10px">
+        <span><i class="dot" style="background:var(--win)"></i>有效（換兵比 ≥ 1）</span>
+        <span><i class="dot" style="background:var(--loss)"></i>無效</span>
+      </div>
+    </div>
+  </div>
+  <div class="concl" id="cOv"></div>
+  <div><h3 id="kpiLabel"></h3><div class="kpis" id="kpiOv"></div></div>
+  <p class="note">字卡跟著上方區間切換。選單日時，字卡下方顯示與全部相比的差異：(單日 − 全部) ÷ 全部；場數與總戰功改顯示佔全部的比例。每死千兵換戰功 = 戰功 ÷ 我方陣亡 × 1000。全盟平均每場戰功取自 11/21 查詢的全盟戰報摘要（全部 1,542；11/20 1,504；11/21 1,594）。</p>
+</section>
+
+<!-- 2. 戰報分析：哪一隊表現較好 → 明細 -->
+<section class="card">
+  <div class="head">
+    <h2>戰報分析：隊伍 → 行動 → 戰報</h2>
+    <span class="sub" id="lbAn"></span>
+  </div>
+  <div class="panel-grid">
+    <div class="panel">
+      <div class="phead"><h3 id="hdTeam">兩隊對照</h3></div>
+      <div id="chTeam"></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><h3>行動換兵比</h3>
+        <div class="legend" id="actLegend"></div>
+      </div>
+      <div class="dv-list" id="chAct"></div>
+      <div class="axis"><span></span><div class="ticks" id="axAct"></div><span></span></div>
+      <p class="note">換兵比 = 敵方兵損 ÷ 我方兵損，以 1.0 為中線：往右為划算（綠），往左為吃虧（紅）。刻度為倍數，超過 8 或低於 1/8 以滿格顯示。</p>
+    </div>
+  </div>
+  <div class="concl" id="cTeam"></div>
+
+  <div class="phead" style="margin-top:18px">
+    <h3>明細：好打與難打的對手</h3>
+    <span class="sub">只出現 1 場的對手排在 2 場以上之後，並標示「樣本少」</span>
+  </div>
+  <div class="panel-grid even">
+    <div class="panel">
+      <div class="phead"><h3>好打的對手 前 5</h3><span class="sub">換兵比 ≥ 1，由高到低</span></div>
+      <ol class="rank" id="goodList"></ol>
+    </div>
+    <div class="panel">
+      <div class="phead"><h3>難打的對手 前 5</h3><span class="sub">換兵比 &lt; 1，由低到高</span></div>
+      <ol class="rank" id="badList"></ol>
+    </div>
+  </div>
+  <div class="concl" id="cDetail"></div>
+  <div class="phead">
+    <h3>逐層明細：點隊伍看行動，點行動看每一份戰報</h3>
+    <div class="toolbar">
+      <button class="btn" id="expandAll" type="button">全部展開</button>
+      <button class="btn" id="collapseAll" type="button">全部收合</button>
+    </div>
+  </div>
+  <div id="drill"></div>
+</section>
+
+<!-- 3. 對手隊伍 -->
+<section class="card">
+  <div class="head"><h2>對手隊伍：常遇對手與兵損來源</h2><span class="sub" id="lbOpp"></span></div>
+  <div class="panel">
+    <div class="phead"><h3>對手隊伍換兵比</h3><span class="sub">括號內為場數</span></div>
+    <div class="dv-list" id="chOpp"></div>
+    <div class="axis"><span></span><div class="ticks" id="axOpp"></div><span></span></div>
+  </div>
+  <div class="concl" id="cOpp"></div>
+  <div class="tbl"><table>
+    <thead><tr><th>對手隊伍</th><th class="num">場數</th><th class="num">勝</th><th class="num">平</th><th class="num">敗</th><th class="num">我方兵損</th><th class="num">敵方兵損</th><th class="num">換兵比</th><th class="num">有效場</th></tr></thead>
+    <tbody id="oppBody"></tbody>
+  </table></div>
+</section>
+
+<!-- 4. 武將查詢 -->
+<section class="card">
+  <div class="head"><h2>武將查詢：所屬隊伍對各對手的表現</h2><span class="sub" id="lbGen"></span></div>
+  <div class="row">
+    <select id="genSel" aria-label="武將"></select>
+    <span class="sub" id="genNote"></span>
+  </div>
+  <div class="panel">
+    <div class="phead"><h3>對各對手的換兵比</h3><span class="sub">括號內為場數</span></div>
+    <div class="dv-list" id="chGen"></div>
+    <div class="axis"><span></span><div class="ticks" id="axGen"></div><span></span></div>
+  </div>
+  <div class="concl" id="cGen"></div>
+  <div class="kpis" id="genKpi"></div>
+  <p class="note">每支隊伍的三名武將固定，所以查詢武將等同查詢該隊伍配置。</p>
+  <div class="tbl" style="margin-top:10px"><table>
+    <thead><tr><th>對手隊伍</th><th class="num">場數</th><th class="num">勝</th><th class="num">平</th><th class="num">敗</th><th class="num">我方兵損</th><th class="num">敵方兵損</th><th class="num">換兵比</th><th class="num">有效場</th></tr></thead>
+    <tbody id="genOpp"></tbody>
+  </table></div>
+</section>
+
+<!-- 5. 戰報搜尋 -->
+<section class="card">
+  <div class="head"><h2>戰報搜尋</h2><span class="sub" id="lbSearch"></span></div>
+  <div class="row">
+    <input id="q" type="search" placeholder="對手、對手隊伍或我方隊伍" aria-label="搜尋戰報">
+  </div>
+  <div class="concl" id="cSearch"></div>
+  <div class="tbl"><table>
+    <thead><tr><th>時間</th><th>隊伍</th><th>結果</th><th>對手隊伍</th><th>對手</th><th class="num">戰功</th><th class="num">戰後兵力比</th><th class="num">我方兵損</th><th class="num">敵方兵損</th><th class="num">換兵比</th><th>有效</th></tr></thead>
+    <tbody id="repBody"></tbody>
+  </table></div>
+</section>
+
+</div><!-- /report -->
+</main>
+
+<script>
+const TEAMS = {
+  PT: { name: "龐統｜諸葛亮｜SP法正", short: "龐統隊", gens: ["龐統", "諸葛亮", "SP 法正"] },
+  CY: { name: "喬遼弓", short: "喬遼弓", gens: ["CO 大喬", "張遼", "左慈"] },
+  DH: { name: "大漢弓", short: "大漢弓", gens: ["SP 曹操", "SP 盧植", "SP 貂蟬"] },
+  HM: { name: "皇馬槍", short: "皇馬槍", gens: ["SP 馬超", "SP 皇甫嵩", "許攸"] },
+  XY: { name: "荀攸五謀騎", short: "荀攸五謀騎", gens: ["SP 荀彧", "SP 郭嘉", "荀攸"] }
+};
+// id, 時間(台灣), 隊伍, 結果, 對手隊伍, 對手, 戰功, 我方死兵, 敵方死兵, 我方戰前, 我方戰後, 敵方戰前, 敵方戰後
+const RAW_IU = [
+["cd8e0b71","2026-11-20T22:58:46","PT","L","皇馬槍","붉은또또",1303,8060,2763,16617,2240,25800,22907],
+["bc45fe91","2026-11-20T22:58:47","PT","T","皇馬槍","붉은햄부기",959,6598,2540,23948,16617,22987,18869],
+["6451cc9a","2026-11-21T19:33:48","PT","L","喬遼盾","푸른민즈",1483,12615,5661,24900,0,27837,20605],
+["1329bc92","2026-11-21T18:40:30","PT","T","皇馬槍","여왕린",2299,null,8350,24900,15017,26700,17095],
+["5a45154f","2026-11-21T18:40:28","PT","L","網紅槍","밥사주는오빠",295,7155,1702,15017,2129,18600,15263],
+["ca2e8c79","2026-11-21T16:33:37","PT","T","北伐槍","신난황제",976,3996,2721,23998,18695,24000,20958],
+["dc156e3f","2026-11-21T15:03:24","PT","W","皇馬槍","RZ사마의",817,1046,2838,24000,22954,8481,2173],
+["aaf4e1cc","2026-11-21T15:03:18","PT","W","網紅槍","SPV",1358,5306,7414,22890,17496,14697,0],
+["1987e947","2026-11-21T12:32:24","PT","T","皇馬槍","여왕개미",1036,3717,3035,24000,20283,17836,13664],
+["849dd1de","2026-11-21T10:03:35","PT","W","程普｜左慈｜太史慈","심은하",1537,557,7671,24000,23428,12224,0],
+["be774cb5","2026-11-21T10:03:33","PT","W","姜維｜諸葛亮｜法正","성색의용",271,212,1008,23428,23216,2300,513],
+["2caebfe5","2026-11-21T10:03:31","PT","W","慷慨弓","마율자로",3359,3324,12618,23216,19003,24000,4595],
+["928fe00c","2026-11-21T10:03:29","PT","T","皇馬槍","노을애디",1294,4951,3314,19003,12717,24900,20469],
+["f41ed162","2026-11-20T05:55:22","CY","L","法呂盾","토리의사생활",69,1391,82,3077,10,19776,19694],
+["e534ac55","2026-11-20T05:55:25","CY","T","皇馬槍","을로호림빵",606,5143,1483,11067,3077,7169,4621],
+["9f52fb21","2026-11-20T05:55:26","CY","T","賈詡｜SP董卓｜SP貂蟬","수지니",1591,3468,2664,16178,11067,24900,21196],
+["194fa986","2026-11-20T05:55:27","CY","W","皇馬槍","흑태제",2090,1298,8089,17748,16178,19543,3580],
+["5fb253d6","2026-11-20T05:55:29","CY","W","慷慨弓","S트원스",817,323,2315,18090,17748,8103,3928],
+["71d6dbd6","2026-11-20T05:55:30","CY","W","皇馬槍","이로아",1651,420,5114,18522,18090,15504,5512],
+["774c3a50","2026-11-20T05:55:32","CY","T","大漢弓","흑태제",2140,1546,2992,20470,18522,14825,11460],
+["feca0e1a","2026-11-20T05:55:33","CY","T","大漢弓","키마",2186,1259,7518,21768,20470,16153,3706],
+["dc1362be","2026-11-20T05:55:34","CY","T","大漢弓","키마",3741,1051,6294,23214,21768,25800,18112],
+["5d441e8f","2026-11-20T05:55:36","CY","W","大漢弓","이로아",3749,754,11243,24000,23214,21664,0],
+["3c6524fa","2026-11-20T14:13:47","CY","T","龐統｜諸葛亮｜SP法正","머스탱스",3005,4078,11268,23379,18729,27600,13414],
+["3b1fcced","2026-11-20T14:13:50","CY","W","皇馬槍","츠과니탱스",3052,615,9308,24000,23379,20717,3110],
+["9435b3f2","2026-11-20T15:28:40","CY","L","法呂盾","도시혜수",1042,6502,1346,15773,2418,17294,15948],
+["a68a1d76","2026-11-20T15:28:42","CY","T","大漢弓","대민지원",3364,1127,8087,16963,15773,22325,9341],
+["cfec4d19","2026-11-20T15:28:44","CY","T","太師弓","백언",4272,1735,10503,18729,16963,24900,8077],
+["dd3cef19","2026-11-20T17:35:25","CY","L","五謀騎","대한약국",null,586,0,2171,729,20274,20274],
+["44b0523e","2026-11-20T17:35:28","CY","T","皇馬槍","대한블루곱",2277,1793,6649,4267,2171,19789,8587],
+["f76f27cd","2026-11-20T17:35:30","CY","W","法呂盾","격분한감태",1432,7314,6069,15123,4267,15010,4843],
+["612f871e","2026-11-20T17:35:31","CY","W","麒麟弓","의혹",1304,683,5624,16026,15123,14888,2246],
+["ba491fc6","2026-11-20T17:35:36","CY","T","皇馬槍","레드나인",1546,6294,4343,23954,16026,12802,6212],
+["bbc5269d","2026-11-20T17:35:37","CY","W","麒麟弓","비우",1460,46,6695,24000,23954,17756,2302],
+["e18b8fd7","2026-11-20T18:53:08","CY","L","法呂盾","곽회s",754,7485,1468,15040,1500,20197,18017],
+["1e850564","2026-11-20T18:53:10","CY","T","大漢弓","당근",2870,992,6510,16076,15040,15310,5992],
+["fc5a28e2","2026-11-20T18:53:12","CY","W","皇馬槍","츠나태",306,7,1295,16083,16076,4438,1451],
+["ab3870ce","2026-11-20T18:53:14","CY","W","SP盧植｜SP董卓｜SP貂蟬","세쥬",2127,688,5812,16776,16083,14374,4417],
+["c199ccf7","2026-11-20T18:53:16","CY","W","五謀騎","작두의사생활",3636,865,10417,17826,16776,22774,3140],
+["3ab4cf77","2026-11-20T18:53:18","CY","T","大漢弓","김흰의사생활",1829,5135,2433,24300,17826,18544,15669],
+["c242a587","2026-11-20T22:59:23","CY","W","點火弓","풍걸린용창이",1673,315,6364,16408,15947,24000,10543],
+["e109cf65","2026-11-20T22:59:26","CY","T","皇馬槍","밍밍파파",4584,6494,12198,23772,16408,24900,7626],
+["88e0bd68","2026-11-20T22:59:27","CY","T","太師弓","초정",2008,294,7252,24300,23999,11372,550],
+["aa5632ad","2026-11-21T07:57:02","CY","W","慷慨弓","붉은야수",1773,1546,6624,24300,21164,23100,9820],
+["4a909c55","2026-11-21T08:24:19","CY","T","慷慨弓","붉은야수",2726,5304,7866,21164,15233,23100,8883],
+["006bcebd","2026-11-21T09:22:32","CY","T","五謀騎","김채원",2914,2500,11546,24078,20439,22925,8562],
+["030462b5","2026-11-21T09:22:35","CY","W","皇馬槍","격분한뭉쿨이",1679,194,8437,24300,24078,17425,4115],
+["dde75d95","2026-11-21T11:30:25","CY","T","皇馬槍","츠과니탱스",1904,9414,3161,24300,9204,27000,22769],
+["9ddb4140","2026-11-21T12:33:24","CY","L","喬遼盾","빵빵의사생활",56,5596,269,14660,291,21420,20807],
+["62e11e57","2026-11-21T12:33:26","CY","T","皇馬槍","화요싫어",1442,4986,2887,22534,14660,21210,17800],
+["58349c6c","2026-11-21T12:33:28","CY","W","法關盾","도란",2894,1197,9458,24300,22534,24000,4434]
+];
+// 狩丨瞞（名單序號 2）：53 份戰報去重後 50 份，欄位同上
+const RAW_SW = [
+["cfb639c6","2026-11-21T18:34:45","CY","T","大漢弓","격분한폭풍",2432,5554,3271,25800,17738,20424,17153],
+["6ee355b7","2026-11-21T18:34:44","CY","W","喬遼盾","격분한폭풍",2926,2667,10402,17738,14034,24900,1627],
+["bbdad8a8","2026-11-21T18:34:42","CY","W","法呂盾","흑태제",803,59,3531,14034,13913,11895,4973],
+["aac9ab52","2026-11-21T18:34:41","CY","T","荀攸五謀騎","수엘라",2909,3623,7521,13913,9791,25365,12722],
+["9a406078","2026-11-21T18:34:38","CY","L","慷慨弓","（未辨識）",447,4714,936,9791,0,25500,24212],
+["552b581e","2026-11-21T18:27:47","DH","T","五謀騎","마하반야",667,3387,1287,25800,21154,12916,11246],
+["4589d270","2026-11-21T18:27:44","DH","T","大漢弓","도시혜수",1576,3047,2052,21154,16775,25689,23595],
+["b9061fc1","2026-11-21T18:27:42","DH","T","五謀騎","캐리",1183,4510,2293,16775,12221,26700,23046],
+["987ae03f","2026-11-21T18:27:40","DH","T","法關盾","맛도리조톡만",1302,3280,2919,12221,8396,27000,22000],
+["4e6b25ac","2026-11-21T16:31:37","DH","T","皇馬槍","모닝의사생활",1467,1397,3023,20741,19344,11350,7626],
+["343f15cd","2026-11-21T16:31:35","DH","T","麒麟弓","비우",1627,3141,6661,19344,16028,19339,6669],
+["e74f3829","2026-11-21T16:19:16","CY","T","皇馬槍","꽃게탕",1912,7492,4001,25800,14988,15183,9731],
+["94d1b364","2026-11-21T15:55:58","DH","T","喬遼弓","흰수염돌",1922,3495,4685,25119,20741,24626,18562],
+["1237bb5c","2026-11-21T14:24:01","CY","T","法呂盾","붉은명월",1356,13943,4412,25800,1928,24313,18095],
+["d9c9c7a0","2026-11-21T14:24:00","CY","L","慷慨弓","양정필일",null,717,0,1928,0,9140,9140],
+["fe58cf4a","2026-11-21T14:25:08","DH","W","法呂盾","대민지원",927,1620,3746,25800,24180,12163,5512],
+["8636813d","2026-11-21T14:25:07","DH","T","法呂盾","세쥬",848,2795,2032,24180,20814,10360,7355],
+["72696c11","2026-11-21T14:25:05","DH","T","皇馬槍","츠마리",938,3189,1740,20814,16643,21116,18860],
+["bf72e22f","2026-11-21T14:25:02","DH","T","北伐槍","싹다먹어",1388,2100,4112,16643,14543,25800,19508],
+["7cd87c85","2026-11-21T11:29:00","HM","L","貂蟬｜張角｜沮授","지혜",996,7000,4204,19546,3411,20310,12976],
+["7b812845","2026-11-21T11:28:38","DH","T","皇馬槍","존트캠거루",1399,2229,3338,24900,22671,18993,14171],
+["cea18d82","2026-11-21T11:28:35","DH","T","大漢弓","현빙",1085,4086,1538,22671,17512,16122,14105],
+["be5edc72","2026-11-21T11:28:33","DH","T","皇馬槍","단코",608,9007,1040,17512,3443,23416,22060],
+["63b1bd2e","2026-11-21T11:17:35","HM","T","皇馬槍","단은성",2011,5213,5398,24900,19546,18608,9983],
+["2ca201a6","2026-11-21T09:24:13","DH","T","皇馬槍","여우비",1320,2579,2609,23424,18860,16212,13545],
+["80193fdd","2026-11-21T09:24:11","DH","T","大漢弓","응경말금",1190,7680,1604,18920,8157,27153,25186],
+["8e023160","2026-11-21T09:19:17","HM","L","喬遼騎","상태메시지",67,5065,160,23616,12904,11630,11335],
+["54885a5e","2026-11-21T00:42:03","HM","T","大漢弓","격분한촉홍",2021,764,4286,24000,23117,22800,18287],
+["ff5fadbf","2026-11-21T00:42:01","HM","T","皇馬槍","（未辨識）",1431,5722,3014,23117,15817,26694,22791],
+["4bb5d82e","2026-11-21T00:41:59","HM","L","法呂盾","옹빠직",1213,7913,1858,15817,0,18374,16275],
+["c8ef1e69","2026-11-21T00:40:57","DH","T","大漢弓","옹빠직",930,4468,2135,24000,19532,16845,13393],
+["9a57e2f3","2026-11-21T00:40:55","DH","T","大漢弓","Y바사칸",842,4524,1085,19532,12736,22683,21598],
+["ddea715e","2026-11-21T00:40:53","DH","L","核彈盾","천지비",51,5572,103,12736,0,25800,25602],
+["0c810f3a","2026-11-21T00:32:14","DH","T","法呂盾","격분한감태",1347,576,4292,24000,23379,12707,6586],
+["f20e5eb2","2026-11-20T20:11:18","HM","L","皇馬槍","내가용창이",270,7513,356,24000,9542,17096,16740],
+["1f692337","2026-11-20T20:11:05","DH","T","皇馬槍","초마리",1012,6671,1831,23928,12698,18732,16179],
+["143f19af","2026-11-20T20:11:04","DH","L","點火弓","오제이",979,6751,2343,12698,0,19901,17145],
+["b37fb962","2026-11-20T16:09:35","DH","T","皇馬槍","아르테타",990,1987,2184,24000,22013,24300,20822],
+["bf4f0131","2026-11-20T16:09:33","DH","T","點火弓","풍풍의사생활",1030,5475,2275,22013,14792,22261,18721],
+["1549a95b","2026-11-20T16:09:32","DH","T","龐統｜諸葛亮｜SP法正","여와",475,1705,806,14792,12948,25800,24716],
+["0299fbcd","2026-11-20T16:09:30","DH","T","皇馬槍","초여와",1142,1202,2737,12948,11746,17839,13826],
+["bdbcd96a","2026-11-20T16:09:27","DH","L","大漢弓","흑태제",207,3499,360,11746,3861,20202,19842],
+["9ba6371b","2026-11-20T15:22:46","HM","T","皇馬槍","거북왕",1993,2036,5619,24000,21808,10381,2359],
+["e324c2c5","2026-11-20T15:22:44","HM","T","皇馬槍","냥파",1765,5304,4336,21808,14922,26700,21765],
+["d71db7cf","2026-11-20T15:22:41","HM","L","法呂盾","부선리샤말금",748,6535,894,14922,4209,25926,25032],
+["4b011c3b","2026-11-20T05:53:42","HM","T","點火弓","품걸린용창이",2476,1420,10893,23994,22368,18771,4055],
+["23e0c459","2026-11-20T05:53:41","HM","T","皇馬槍","용로돗배랑빵",2329,4030,4050,22368,17302,18461,13244],
+["f01be8de","2026-11-20T05:53:40","HM","T","大漢弓","*간담",1403,5208,1746,17302,10913,19374,17376],
+["cbaae54c","2026-11-20T05:53:38","HM","T","大漢弓","*간담",1141,null,1394,10913,7003,13486,12092],
+["da1ec2ad","2026-11-20T05:53:36","HM","L","皇馬槍","*간담",148,3087,262,7003,0,20983,20721]
+];
+// 名單序號 → 該成員的戰報（沒有出現的成員尚未載入）
+// 狩丨月（名單序號 1）：50 份戰報，去重捨棄 2 份、排除 1 份對器械（20 兵）的戰報，剩 47 份
+const RAW_SY = [
+["0febeb7c","2026-11-22T00:48:04","XY","W","抬棺弓","dist",1861,1185,8117,25160,23871,25800,9802],
+["9f5a74a0","2026-11-22T00:36:57","XY","W","貂董漢弓","KD까투리",1103,12,4983,21611,21599,19692,7774],
+["15440a57","2026-11-22T00:36:55","XY","L","皇馬槍","여포",1639,9443,3263,21599,4798,23637,18762],
+["62fd5dd3","2026-11-22T00:12:17","HM","W","（未分類）","Search",298,0,1083,25800,25800,2636,0],
+["01bfef91","2026-11-22T00:12:15","HM","W","慷慨弓","Y 이런",1255,1733,6907,25800,22266,19605,6928],
+["d4d5c642","2026-11-22T00:12:13","HM","L","麒麟弓","비우",227,9629,639,22266,157,22758,21614],
+["b3462f0d","2026-11-21T18:37:15","XY","L","法呂盾","흑태제",1197,10473,3728,21715,0,23830,19570],
+["b5aaf79f","2026-11-21T17:41:04","HM","T","皇馬槍","패티김",1981,4936,4064,25800,17471,18769,13771],
+["bc6d6f15","2026-11-21T17:38:19","XY","T","太師弓","해치",2708,4085,4278,25800,20312,18177,12493],
+["2b63d214","2026-11-21T17:36:52","HM","W","皇馬槍","S동주",1990,914,8110,20864,19607,13828,0],
+["189859e3","2026-11-21T17:36:49","HM","W","麒麟弓","비우",1838,1014,11978,19607,18593,20240,0],
+["46ee054b","2026-11-21T16:35:34","HM","T","大漢弓","루돌푸",1619,3626,2782,20226,14772,24207,21255],
+["6b55a266","2026-11-21T16:35:32","HM","L","喬遼盾","KD까투리",270,5890,1018,14772,999,25207,22982],
+["eed09cac","2026-11-21T16:16:20","HM","T","皇馬槍","Y햇님반",2098,4503,7761,25800,20226,24900,13236],
+["e1eb9d6a","2026-11-21T14:56:54","HM","T","喬遼弓","수연",2888,4802,8408,25800,20475,27600,16684],
+["d5b55d74","2026-11-21T14:56:53","HM","L","麒麟弓","바라밀다",380,9353,973,20475,93,24373,22827],
+["ed44d480","2026-11-21T14:26:39","XY","W","姜維｜SP黃月英｜龐統","철건빵",2860,1757,11753,25800,24043,24900,0],
+["4b6a8088","2026-11-21T14:26:37","XY","W","五謀騎","용로와니",2555,3026,13225,24043,20146,24702,27],
+["47360485","2026-11-21T14:26:34","XY","T","皇馬槍","투신황건적",1527,4498,3185,18585,13089,18855,14459],
+["92e2b4da","2026-11-21T14:26:31","XY","L","麒麟弓","투신적색양파",627,5694,2720,13089,2044,23496,19532],
+["4fd10fed","2026-11-21T12:51:02","XY","L","法呂盾","용림소미미희",595,9457,853,19573,0,19475,18426],
+["06669ae0","2026-11-21T12:38:26","XY","W","法呂盾","용로쥬뮤",1486,3955,4935,25800,19573,15893,7723],
+["eb552e9b","2026-11-21T12:26:42","HM","T","皇馬槍","로케트",997,9245,2199,25800,13904,18028,15770],
+["b06e18d5","2026-11-21T12:26:39","HM","L","法呂盾","박나래",803,6574,1007,13904,0,16651,15512],
+["58495e6c","2026-11-21T09:26:38","HM","L","麒麟弓","게코",574,10895,1596,25800,2638,24853,21318],
+["559bbe5f","2026-11-21T09:22:09","XY","T","大漢弓","Y바사칸",1907,4761,2696,25800,18172,21375,17919],
+["96714072","2026-11-21T09:22:08","XY","W","三仙盾","투신적요",2457,1898,8103,18172,15472,19895,5664],
+["5b135b83","2026-11-21T09:22:04","XY","T","皇馬槍","내가용창이",965,8164,1487,15472,1560,17426,15790],
+["65873471","2026-11-21T08:37:52","HM","T","大漢弓","아조씨",1207,5394,1737,24900,17539,26008,24271],
+["dd2e9ece","2026-11-21T08:37:50","HM","T","大漢弓","낙화유수",1731,3240,2053,17539,13038,12535,10430],
+["d678a5ab","2026-11-21T08:37:48","HM","L","大漢弓","용로쥬뮤",845,4833,1241,13038,5505,27900,26015],
+["f347406f","2026-11-20T23:21:16","HM","T","皇馬槍","아미타불",2813,1162,10261,24900,23617,19857,4376],
+["7e135692","2026-11-20T23:21:14","HM","T","大漢弓","김창숙",2016,5537,2284,23617,17680,25019,22724],
+["a0e06656","2026-11-20T23:21:11","HM","T","五謀騎","마상",1783,7035,5028,17680,7274,18615,11660],
+["fa2767a9","2026-11-20T22:59:04","HM","T","皇馬槍","붉은햄부기",1316,13182,2032,24900,5324,18869,16447],
+["0eaaece1","2026-11-20T18:59:22","HM","T","皇馬槍","마",595,3607,956,24900,20543,23969,22911],
+["e5f87d2f","2026-11-20T18:59:20","HM","W","法呂盾","KD경진장",1794,869,5760,20543,19174,14054,3292],
+["8f4743b9","2026-11-20T18:59:19","HM","T","皇馬槍","Y햇님반",3402,2380,11054,19174,16739,24572,7287],
+["a0a71597","2026-11-20T18:59:16","HM","T","皇馬槍","의빈",1985,4212,5022,16739,12226,15422,7370],
+["0dfeb7c4","2026-11-20T18:48:30","HM","T","大漢弓","대민지원",1733,4753,2375,24900,18412,27600,24784],
+["70350e6d","2026-11-20T18:48:28","HM","T","皇馬槍","황금비",1672,3870,3365,18412,13907,18556,13713],
+["3c0cad7a","2026-11-20T18:48:26","HM","T","點火弓","풍풍의사생활",1468,2040,5696,13907,11320,12235,2017],
+["770ebd1b","2026-11-20T18:48:23","HM","L","喬遼盾","피카",178,4344,553,11320,2646,17546,16398],
+["d90aaa0a","2026-11-19T21:26:27","HM","T","皇馬槍","북천",2497,2234,11877,24000,21766,19661,628],
+["1990b69c","2026-11-19T21:26:26","HM","T","大漢弓","지윤",1932,2028,6032,21766,19492,14495,4852],
+["611efb20","2026-11-19T21:26:24","HM","T","大漢弓","김흰의사생활",1922,2483,8589,19492,14891,15140,2720],
+["a2654b78","2026-11-19T21:26:22","HM","T","法呂盾","응경말금",1446,8932,3135,20891,7732,15184,11374]
+];
+const MEMBER_RAW = { 17: RAW_IU, 2: RAW_SW, 1: RAW_SY };
+// 序號, 名稱, 門閥, 遊戲名稱, 遊戲組別, 貢獻排名, 戰力, 是否已載入戰報
+const ROSTER = [
+[1,"狩月",0,"狩丨月","零",90,29296,true],[2,"狩瞞",0,"狩丨瞞","零",122,27623,true],[3,"華沙",0,"狩丨路人華沙","零",78,24300],
+[4,"蓋亞",0,"狩I蓋亞","零",125,30180],[5,"擱淺",0,"圓圓擱圓圓","零",110,27780],[6,"連登",0,"鑨丨連登之子","零",64,29000],
+[7,"雪代",1,"雪代緣","一",154,19993],[8,"劉辰",1,"劉辰","一",152,21820],[9,"貢丸",1,"嚎大大貢丸","一",160,21393],
+[10,"六道",1,"照見六道皆凶","一",167,27103],[11,"狩龍",1,"狩丨龍","一",97,28250],[12,"大肥",2,"狩魔親尉B","二",3,32960],
+[13,"公子白",2,"狩丨公子白","二",40,30636],[14,"天使",2,"風雲丨天使豆","二",35,31110],[15,"蘇光頭",2,"秦風丨蘇光頭","二",65,30090],
+[16,"水記",2,"狩丨水記","二",81,29360],[17,"IU",2,"圓圓IU圓圓","二",39,29680,true],[18,"喵姆",4,"喵姆","四",144,27553],
+[19,"葵仔",4,"葵仔","四",75,23990],[20,"鮪",4,"臭鮪魚","四",20,27750],[21,"武安侯",4,"神騎丨武安侯","四",113,27650],
+[22,"狩魔鳳",4,"狩I狩魔鳳","四",100,26493]
+];
+// 全盟每份戰報平均戰功（2026-11-21 查詢的全盟戰報摘要）
+const ALLY = { all: 1542.4, "2026-11-20": 1504.0, "2026-11-21": 1593.6 };
+// 戰功排名：取自賽季成員總表（alliance_members_season_2026-11-13.csv）p6–p8 的每日戰功，
+// 在全盟當日有資料的成員中排名（同分同名次）。格式：名單序號 → 每日 [當日戰功, 全盟戰功排名]
+const RANK_DAYS = ["2026-11-19", "2026-11-20", "2026-11-21"];
+const RANK_TOTAL = [197, 196, 198];
+const MERIT_RANK = {
+  1: [[7797, 43], [20875, 83], [17080, 104]],   2: [[0, 96], [18108, 93], [16511, 106]],
+  3: [[0, 96], [24550, 71], [17877, 102]],      4: [[0, 96], [2644, 176], [10404, 139]],
+  5: [[967, 88], [25332, 69], [9271, 149]],     6: [[9524, 36], [16935, 100], [20342, 91]],
+  7: [[0, 96], [14891, 114], [15104, 116]],     8: [[0, 96], [13681, 121], [13295, 125]],
+  9: [[0, 96], [2057, 178], [3267, 177]],       10: [[0, 96], [5179, 161], [12389, 130]],
+  11: [[340, 95], [15328, 110], [14370, 121]],  12: [[53832, 1], [85769, 5], [71185, 5]],
+  13: [[14617, 25], [42468, 40], [40343, 41]],  14: [[20254, 10], [42163, 43], [44369, 33]],
+  15: [[2518, 76], [13031, 125], [62244, 12]],  16: [[3116, 71], [15493, 107], [25387, 72]],
+  17: [[13466, 27], [63523, 14], [31867, 51]],  18: [[492, 92], [13852, 119], [7346, 158]],
+  19: [[6356, 52], [22453, 77], [23209, 83]],   20: [[13369, 28], [46917, 34], [57085, 18]],
+  21: [[0, 96], [18652, 89], [15077, 117]],     22: [[0, 96], [13541, 123], [19388, 96]]
+};
+
+// 目前成員的戰報、日期與行動；換成員時由 loadMember 重新建立
+let RECS = [], DAYS = [], ACTIONS = [], TEAM_ORDER = [];
+function buildRecs(raw) {
+  return raw.map(r => {
+    const [id, iso, team, o, oppT, oppP, merit, fd, ed, fI, fR, eI, eR] = r;
+    const fL = fI - fR, eL = eI - eR;
+    const ex = fL > 0 ? eL / fL : Infinity;
+    return { id, t: Date.parse(iso), day: iso.slice(0, 10), md: iso.slice(5, 10).replace("-", "/"), hm: iso.slice(11, 16),
+      team, o, oppT, oppP, merit, fd, ed, fI, fR, eI, eR, fL, eL, ex, eff: ex >= 1 };
+  }).sort((a, b) => a.t - b.t);
+}
+
+const pct = x => (x * 100).toFixed(1) + "%";
+const fmt = n => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
+const exf = x => (x === Infinity ? "∞" : x >= 100 ? Math.round(x).toString() : x.toFixed(2));
+const RL = { W: "勝", T: "平", L: "敗" };
+const mdOf = d => d.slice(5).replace("-", "/");
+const okc = x => (x >= 1 ? "ok" : "no");
+const resText = s => [s.W && `${s.W}勝`, s.T && `${s.T}平`, s.L && `${s.L}敗`].filter(Boolean).join("");
+// 結論：第一行為最重要的一件事（螢光標示），斷行後說明
+const CONC = (head, detail) => `<span class="k">結論</span><span class="hl">${head}</span>${detail ? `<div class="dt">${detail}</div>` : ""}`;
+const nTxt = s => `${s.n} 場${s.n < 2 ? "，樣本少" : ""}`;
+
+function agg(list) {
+  const n = list.length;
+  const c = k => list.filter(r => r.o === k).length;
+  const fL = list.reduce((s, r) => s + r.fL, 0), eL = list.reduce((s, r) => s + r.eL, 0);
+  const eff = list.filter(r => r.eff).length;
+  return {
+    n, W: c("W"), T: c("T"), L: c("L"), eff,
+    winRate: n ? c("W") / n : 0, effRate: n ? eff / n : 0,
+    ex: fL ? eL / fL : 0, fL, eL,
+    merit: list.reduce((s, r) => s + (r.merit || 0), 0),
+    fd: list.reduce((s, r) => s + (r.fd || 0), 0),
+    rem: n ? list.reduce((s, r) => s + r.fR / r.fI, 0) / n : 0
+  };
+}
+function groupBy(list, key) {
+  const m = {};
+  list.forEach(r => (m[key(r)] = m[key(r)] || []).push(r));
+  return Object.entries(m).map(([k, v]) => ({ k, v, s: agg(v) }));
+}
+const teamCount = v => groupBy(v, r => r.team).map(g => `${TEAMS[g.k].short}×${g.s.n}`).join("、");
+// 2 場以上的對手排在前面
+const byN = (a, b) => (b.s.n >= 2) - (a.s.n >= 2);
+function rankOpp(list) {
+  const all = groupBy(list, r => r.oppT);
+  return {
+    all,
+    good: all.filter(x => x.s.ex >= 1).sort((a, b) => byN(a, b) || b.s.ex - a.s.ex).slice(0, 5),
+    bad: all.filter(x => x.s.ex < 1).sort((a, b) => byN(a, b) || a.s.ex - b.s.ex).slice(0, 5)
+  };
+}
+
+// 5 分鐘行動歸類：同隊依時間排序，以行動第一份戰報為起點，5 分鐘內歸同一次
+const buildActions = () => {
+  const out = [];
+  Object.keys(TEAMS).forEach(team => {
+    let cur = null;
+    RECS.filter(r => r.team === team).forEach(r => {
+      if (!cur || r.t - cur.start > 5 * 60 * 1000) {
+        cur = { team, start: r.t, day: r.day, md: r.md, hm: r.hm, reps: [] };
+        out.push(cur);
+      }
+      cur.reps.push(r);
+    });
+  });
+  out.forEach(a => Object.assign(a, agg(a.reps)));
+  return out.sort((a, b) => a.start - b.start);
+};
+
+let scope = "all";
+const inScope = d => scope === "all" || d === scope;
+const scopeText = () => (scope === "all" ? "全部" : mdOf(scope));
+const sRecs = () => RECS.filter(r => inScope(r.day));
+const sActs = () => ACTIONS.filter(a => inScope(a.day));
+
+// ---------- chart parts ----------
+const LIM = 3; // log2 範圍 ±3 → 1/8 ~ 8 倍
+function pos(ex) {
+  const v = ex <= 0 ? -LIM : ex === Infinity ? LIM : Math.max(-LIM, Math.min(LIM, Math.log2(ex)));
+  const half = Math.abs(v) / LIM * 50;
+  return v >= 0 ? { cls: "good", left: 50, width: half } : { cls: "bad", left: 50 - half, width: half };
+}
+function dvRow(labelHtml, ex, title) {
+  const p = pos(ex);
+  return `<div class="dv" title="${title || ""}"><div class="lab">${labelHtml}</div>` +
+    `<div class="trk"><div class="f ${p.cls}" style="left:${p.left}%;width:${Math.max(p.width, 0.6)}%"></div></div>` +
+    `<div class="val ${okc(ex)}">${exf(ex)}</div></div>`;
+}
+function axis(id) {
+  const ticks = ["1/8", "1/4", "1/2", "1", "2", "4", "8"];
+  document.getElementById(id).innerHTML = ticks.map((t, i) => `<span style="left:${i / 6 * 100}%">${t}</span>`).join("");
+}
+function oppChart(list) {
+  return groupBy(list, r => r.oppT).sort((a, b) => b.s.ex - a.s.ex)
+    .map(({ k, s }) => dvRow(`<span>${k}（${s.n}）</span>`, s.ex, `${resText(s)}｜有效 ${s.eff} 場`))
+    .join("") || `<div class="sub">此區間沒有戰報</div>`;
+}
+function oppRows(list) {
+  return groupBy(list, r => r.oppT).sort((a, b) => b.s.n - a.s.n || b.s.fL - a.s.fL)
+    .map(({ k, s }) => `<tr><td>${k}</td><td class="num">${s.n}</td><td class="num W">${s.W}</td><td class="num T">${s.T}</td><td class="num L">${s.L}</td>` +
+      `<td class="num">${fmt(s.fL)}</td><td class="num">${fmt(s.eL)}</td><td class="num ${okc(s.ex)}">${s.ex.toFixed(2)}</td><td class="num">${s.eff}</td></tr>`).join("") ||
+    `<tr><td colspan="9" class="sub">此區間沒有戰報</td></tr>`;
+}
+const kpi = (l, v, cls, extra) => `<div class="kpi"><div class="v ${cls || ""}">${v}</div><div class="l">${l}</div>${extra || ""}</div>`;
+// 與全部比較：(單日 − 全部) ÷ 全部；數值越高越好
+function dl(cur, ref) {
+  if (!ref) return "";
+  const d = (cur - ref) / ref;
+  const cls = Math.abs(d) < 0.005 ? "flat" : d > 0 ? "up" : "down";
+  return `<div class="d ${cls}">${d >= 0 ? "▲ +" : "▼ "}${pct(d)}<span> 較全部</span></div>`;
+}
+const share = (cur, ref) => (ref ? `<div class="d flat">佔全部 ${pct(cur / ref)}</div>` : "");
+const perRepOf = s => (s.n ? s.merit / s.n : 0);
+const perKOf = s => (s.fd ? s.merit / s.fd * 1000 : 0);
+function kpisOf(s, b) {
+  return kpi("場數", s.n, "", b && share(s.n, b.n)) +
+    kpi("勝 / 平 / 敗", `${s.W} / ${s.T} / ${s.L}`) +
+    kpi("勝率", pct(s.winRate), "", b && dl(s.winRate, b.winRate)) +
+    kpi("有效場佔比", pct(s.effRate), "", b && dl(s.effRate, b.effRate)) +
+    kpi("換兵比", s.ex.toFixed(2), okc(s.ex), b && dl(s.ex, b.ex)) +
+    kpi("戰後兵力比", pct(s.rem), "", b && dl(s.rem, b.rem)) +
+    kpi("總戰功", fmt(s.merit), "", b && share(s.merit, b.merit)) +
+    kpi("每場戰功", fmt(perRepOf(s)), "", b && dl(perRepOf(s), perRepOf(b))) +
+    kpi("每死千兵換戰功", fmt(perKOf(s)), "", b && dl(perKOf(s), perKOf(b)));
+}
+
+// ---------- 0. 時間軸（只在「全部」顯示）----------
+let timeMode = "day";
+const sgn = d => (d >= 0 ? "+" : "") + pct(d);
+const wan = v => (v >= 10000 ? (v / 10000).toFixed(v % 10000 ? 1 : 0) + "萬" : fmt(v));
+function niceStep(x) {
+  if (x <= 0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(x))), r = x / mag;
+  return (r <= 1 ? 1 : r <= 2 ? 2 : r <= 2.5 ? 2.5 : r <= 5 ? 5 : 10) * mag;
+}
+// 隊伍顏色：依出戰場數排序的前 5 隊
+const TEAM_COLORS = ["var(--accent)", "var(--pt)", "var(--t3)", "var(--t4)", "var(--t5)"];
+const teamColor = k => TEAM_COLORS[TEAM_ORDER.indexOf(k)] || "var(--muted)";
+const dotOf = k => `<i class="dot" style="background:${teamColor(k)}"></i>`;
+// 換成員：重建戰報、行動、隊伍顏色、武將選單與行動圖例
+function loadMember(n) {
+  RECS = buildRecs(MEMBER_RAW[n] || []);
+  DAYS = [...new Set(RECS.map(r => r.day))].sort();
+  ACTIONS = buildActions();
+  TEAM_ORDER = groupBy(RECS, r => r.team).sort((a, b) => b.s.n - a.s.n).slice(0, 5).map(g => g.k);
+  const used = Object.keys(TEAMS).filter(k => RECS.some(r => r.team === k));
+  document.getElementById("genSel").innerHTML = used.flatMap(k => TEAMS[k].gens.map(g => `<option value="${g}">${g}（${TEAMS[k].short}）</option>`)).join("");
+  document.getElementById("actLegend").innerHTML = used.map(k => `<span>${dotOf(k)}${TEAMS[k].name}</span>`).join("");
+  document.getElementById("hdTeam").textContent = used.length === 2 ? "兩隊對照" : "隊伍對照";
+  if (scope !== "all" && !DAYS.includes(scope)) scope = "all";
+  // 區間按鈕依這位成員有戰報的日期產生
+  document.getElementById("scopeSeg").innerHTML = ["all", ...DAYS].map(d =>
+    `<button type="button" data-scope="${d}" aria-pressed="${d === scope}">${d === "all" ? "全部" : mdOf(d)}</button>`).join("");
+}
+
+// 戰功排名（每位成員皆有，取自賽季成員資料）
+function rankSeries(n) {
+  return RANK_DAYS.map((d, i) => {
+    const v = (MERIT_RANK[n] || [])[i];
+    return { day: d, merit: v ? v[0] : null, rank: v && v[0] > 0 ? v[1] : null, total: RANK_TOTAL[i] };
+  });
+}
+function rankText(n, hlDay) {
+  const ser = rankSeries(n);
+  const idx = hlDay ? ser.findIndex(p => p.day === hlDay) : ser.map(p => !!p.rank).lastIndexOf(true);
+  const cur = ser[idx];
+  const path = ser.map(p => `${mdOf(p.day)} ${p.rank ? `第 ${p.rank} 名（戰功 ${fmt(p.merit)}）` : p.merit === 0 ? "無戰功" : "無資料"}`).join(" → ");
+  let head;
+  if (hlDay && !RANK_DAYS.includes(hlDay)) head = `${mdOf(hlDay)} 尚無賽季排名資料`;
+  else if (!cur || !cur.rank) head = `${cur ? mdOf(cur.day) + " " : ""}沒有戰功紀錄`;
+  else {
+    const prev = ser.slice(0, idx).reverse().find(p => p.rank);
+    const d = prev ? prev.rank - cur.rank : 0;
+    head = `戰功排名第 ${cur.rank} 名（${mdOf(cur.day)}）` + (prev ? `，較前一日${d > 0 ? `上升 ${d} 名` : d < 0 ? `下滑 ${-d} 名` : "持平"}` : "");
+  }
+  // 戰報加總與賽季資料差太多時，代表賽季資料是較早的快照，排名會偏低
+  const stale = ser.filter(p => p.merit > 0).map(p => ({ p, rep: agg(RECS.filter(r => r.day === p.day)).merit }))
+    .filter(x => x.rep > 0 && Math.abs(x.rep - x.p.merit) / Math.max(x.rep, x.p.merit) > 0.2);
+  const warn = stale.length && MEMBER_RAW[n] && n === member
+    ? `<br><b class="no">注意：</b>${stale.map(x => `${mdOf(x.p.day)} 戰報加總 ${fmt(x.rep)}，賽季資料只有 ${fmt(x.p.merit)}`).join("；")}，賽季資料可能是較早的快照，該日名次會偏低。` : "";
+  return { head, path, detail: `逐日：${path}；全盟約 ${RANK_TOTAL[RANK_TOTAL.length - 1]} 人。排名依賽季成員資料的每日戰功計算，與戰報統計的戰功來源不同，數字會略有差異。${warn}` };
+}
+function rankKpi(n, hlDay) {
+  const ser = rankSeries(n);
+  const idx = hlDay ? ser.findIndex(p => p.day === hlDay) : ser.map(p => !!p.rank).lastIndexOf(true);
+  const cur = ser[idx];
+  if (hlDay && !RANK_DAYS.includes(hlDay)) return kpi("戰功排名", "—", "", `<div class="d flat">${mdOf(hlDay)} 尚無排名資料</div>`);
+  if (!cur || !cur.rank) return kpi("戰功排名", "—", "", `<div class="d flat">${cur ? mdOf(cur.day) + " " : ""}無戰功</div>`);
+  const prev = ser.slice(0, idx).reverse().find(p => p.rank);
+  const d = prev ? prev.rank - cur.rank : 0;
+  const delta = prev ? `<div class="d ${d > 0 ? "up" : d < 0 ? "down" : "flat"}">${d > 0 ? `▲ 上升 ${d} 名` : d < 0 ? `▼ 下滑 ${-d} 名` : "持平"}<span> 較前一日</span></div>` : "";
+  return kpi(`戰功排名（${mdOf(cur.day)}）`, `第 ${cur.rank} 名`, "", delta);
+}
+function drawRank(el, n, hlDay) {
+  const ser = rankSeries(n), pts = ser.filter(p => p.rank);
+  if (!pts.length) { el.innerHTML = `<div class="sub">這三天的賽季資料中沒有戰功紀錄。</div>`; return; }
+  const W = Math.max(260, Math.floor(el.clientWidth || 400)), H = 190, m = { l: 24, r: 24, t: 30, b: 46 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b, band = pw / ser.length;
+  const lo = Math.min(...pts.map(p => p.rank)), hi = Math.max(...pts.map(p => p.rank)), span = Math.max(hi - lo, 10);
+  const x = i => m.l + band * (i + 0.5), y = r => m.t + (r - lo) / span * ph;
+  let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="戰功排名逐日變化">`;
+  s += `<line class="gl" x1="${m.l}" x2="${W - m.r}" y1="${m.t + ph}" y2="${m.t + ph}"/>`;
+  const line = ser.map((p, i) => (p.rank ? `${x(i)},${y(p.rank)}` : null)).filter(Boolean);
+  if (line.length > 1) s += `<polyline class="rk-line" style="stroke-dasharray:none" points="${line.join(" ")}"/>`;
+  ser.forEach((p, i) => {
+    const on = p.day === hlDay;
+    if (p.rank) s += `<circle class="rk-pt${on ? " on" : ""}" cx="${x(i)}" cy="${y(p.rank)}" r="${on ? 6 : 4.5}"><title>${mdOf(p.day)} 第 ${p.rank} 名／全盟 ${p.total} 人</title></circle>` +
+      `<text class="rkl" x="${x(i)}" y="${y(p.rank) - 10}" text-anchor="middle">第${p.rank}名</text>`;
+    s += `<text class="ax" x="${x(i)}" y="${H - 26}" text-anchor="middle"${on ? ' font-weight="600"' : ""}>${mdOf(p.day)}</text>` +
+      `<text class="ax" x="${x(i)}" y="${H - 10}" text-anchor="middle">${p.merit == null ? "無資料" : p.merit ? "戰功 " + wan(p.merit) : "無戰功"}</text>`;
+  });
+  el.innerHTML = s + "</svg>";
+}
+// 換兵比（右軸）：敵方兵損 ÷ 我方兵損，1 為打平，沒有上限；軸頂取 2／4／6，超過 6 畫在頂端並標實際值
+const rxOf = s => (s.fL ? s.eL / s.fL : s.eL ? Infinity : 0);
+const rxTop = vals => { const f = vals.filter(v => v != null && isFinite(v)); const mx = f.length ? Math.max(...f) : 1; return mx <= 2 ? 2 : mx <= 4 ? 4 : 6; };
+const rxTxt = v => (v === Infinity ? "∞" : v.toFixed(2));
+const rxTick = (top, k) => { const v = top * k / 4; return v % 1 ? v.toFixed(1) : String(v); };
+// 依日：長條依隊伍堆疊（前 5 隊），實線為換兵比，藍色虛線為戰功排名
+function drawDayCombo(el, items, ref, hlDay) {
+  const W = Math.max(300, Math.floor(el.clientWidth || 600)), H = 280;
+  const m = { l: 50, r: 46, t: 30, b: 46 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b, n = items.length;
+  const step = niceStep(Math.max(1, ...items.map(i => i.merit)) / 4), maxM = step * 4;
+  const band = pw / n, bw = Math.min(band * 0.4, 80);
+  const top = rxTop(items.map(it => it.ex));
+  const x = i => m.l + band * (i + 0.5), yM = v => m.t + ph - v / maxM * ph, yR = v => m.t + ph - Math.min(v, top) / top * ph;
+  const rks = items.filter(it => it.rank).map(it => it.rank);
+  const lo = rks.length ? Math.min(...rks) : 1, span = Math.max((rks.length ? Math.max(...rks) : 2) - lo, 10);
+  const yK = r => m.t + 16 + (r - lo) / span * (ph * 0.6);
+  let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="隊伍戰功、換兵比與戰功排名">`;
+  // 標示日：底色帶
+  items.forEach((it, i) => { if (it.day === hlDay) s += `<rect x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ph + 36}" rx="6" style="fill:var(--tint)"/>`; });
+  s += `<text class="ax" x="${m.l}" y="12" text-anchor="middle">戰功</text><text class="ax" x="${W - m.r}" y="12" text-anchor="middle">換兵比</text>`;
+  for (let k = 0; k <= 4; k++) {
+    const y = yM(step * k);
+    s += `<line class="gl" x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}"/>`;
+    s += `<text class="ax" x="${m.l - 6}" y="${y + 4}" text-anchor="end">${wan(step * k)}</text>`;
+    s += `<text class="ax" x="${W - m.r + 6}" y="${y + 4}">${rxTick(top, k)}</text>`;
+  }
+  items.forEach((it, i) => {
+    let y0 = m.t + ph;
+    it.segs.forEach(sg => {
+      if (!sg.m) return;
+      const h = sg.m / maxM * ph; y0 -= h;
+      s += `<rect class="bar" style="fill:${sg.color}" x="${x(i) - bw / 2}" y="${y0}" width="${bw}" height="${h}"><title>${it.label} ${sg.name}｜${sg.n} 場｜戰功 ${fmt(sg.m)}</title></rect>`;
+    });
+  });
+  s += `<line class="ref" x1="${m.l}" x2="${W - m.r}" y1="${yR(1)}" y2="${yR(1)}"/>`;
+  s += `<text class="rl" x="${W - m.r - 4}" y="${yR(1) - 6}" text-anchor="end">1＝打平</text>`;
+  const exl = items.map((it, i) => (it.ex == null ? null : `${x(i)},${yR(it.ex)}`)).filter(Boolean);
+  if (exl.length > 1) s += `<polyline class="rate" points="${exl.join(" ")}"/>`;
+  const rk = items.map((it, i) => (it.rank ? `${x(i)},${yK(it.rank)}` : null)).filter(Boolean);
+  if (rk.length > 1) s += `<polyline class="rk-line" points="${rk.join(" ")}"/>`;
+  items.forEach((it, i) => {
+    if (it.ex != null) s += `<circle class="pt" cx="${x(i)}" cy="${yR(it.ex)}" r="5"><title>${it.label} 換兵比 ${rxTxt(it.ex)}</title></circle>` +
+      `<text class="rl" x="${x(i) + 10}" y="${yR(it.ex) + 4}">${rxTxt(it.ex)}</text>`;
+    if (it.rank) s += `<circle class="rk-pt" cx="${x(i)}" cy="${yK(it.rank)}" r="4.5"><title>${it.label} 戰功排名第 ${it.rank} 名／全盟 ${it.total} 人｜當日戰功 ${fmt(it.dm)}</title></circle>` +
+      `<text class="rkl" x="${x(i) - 10}" y="${yK(it.rank) + 4}" text-anchor="end">第${it.rank}名</text>`;
+    s += `<text class="ax" x="${x(i)}" y="${m.t + ph + 16}" text-anchor="middle" font-weight="${!hlDay || it.day === hlDay ? 600 : 400}">${it.label}${it.day === hlDay ? "（本日）" : ""}</text>` +
+      `<text class="ax" x="${x(i)}" y="${m.t + ph + 32}" text-anchor="middle">${it.sub}</text>`;
+  });
+  el.innerHTML = s + "</svg>";
+}
+// 圖例：隊伍（前 5，依場數）附上該區間的場數與戰功
+function teamLegend(recs, withRank) {
+  const tot = agg(recs);
+  const lg = (c, t, round) => `<span><i class="dot" style="background:${c}${round ? ";border-radius:50%" : ""}"></i>${t}</span>`;
+  return TEAM_ORDER.map(k => {
+    const s = agg(recs.filter(r => r.team === k));
+    return lg(teamColor(k), `${TEAMS[k].name}：${s.n} 場・戰功 ${fmt(s.merit)}（${pct(tot.merit ? s.merit / tot.merit : 0)}）`);
+  }).join("") + lg("var(--rate)", "換兵比（右軸，敵方兵損 ÷ 我方兵損）", true) +
+    (withRank ? lg("var(--rank)", "戰功排名（藍色虛線，標籤為名次）", true) : "") + `<span>橘色虛線：換兵比 1（打平），線在上方代表每損失一兵換到超過一兵</span>`;
+}
+// 逐日資料：每天依隊伍堆疊戰功，另附換兵比與戰功排名
+function dayItems() {
+  const ser = rankSeries(member);
+  return [...new Set([...RANK_DAYS, ...DAYS])].sort().map(d => {
+    const v = RECS.filter(r => r.day === d), s = agg(v);
+    const segs = TEAM_ORDER.map(k => { const t = agg(v.filter(r => r.team === k)); return { name: TEAMS[k].name, color: teamColor(k), m: t.merit, n: t.n }; });
+    const other = v.filter(r => !TEAM_ORDER.includes(r.team));
+    if (other.length) segs.push({ name: "其他隊伍", color: "var(--muted)", m: agg(other).merit, n: other.length });
+    const rk = ser.find(p => p.day === d) || {};
+    return { day: d, label: mdOf(d), sub: s.n ? `${s.n} 場・${wan(s.merit)}` : "無戰報", merit: s.merit, ex: s.n ? rxOf(s) : null,
+      segs, rank: rk.rank || null, dm: rk.merit, total: rk.total };
+  });
+}
+
+function timeItems() {
+  if (timeMode === "day") return dayItems();
+  return ACTIONS.map(a => ({ day: a.day, team: a.team, label: a.hm, sub: "", merit: a.merit, ex: rxOf(a),
+    title: `${a.md} ${a.hm} ${TEAMS[a.team].short}｜${a.n} 份｜戰功 ${fmt(a.merit)}｜換兵比 ${rxTxt(rxOf(a))}` }));
+}
+function drawCombo(el, items, ref) {
+  const day = timeMode === "day";
+  const W = Math.max(300, Math.floor(el.clientWidth || 600)), H = 260;
+  const m = { l: 50, r: 46, t: 26, b: day ? 46 : 40 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b, n = items.length;
+  const step = niceStep(Math.max(...items.map(i => i.merit)) / 4), maxM = step * 4;
+  const band = pw / n, bw = Math.min(band * (day ? 0.4 : 0.62), 72);
+  const top = rxTop(items.map(it => it.ex));
+  const x = i => m.l + band * (i + 0.5), yM = v => m.t + ph - v / maxM * ph, yR = v => m.t + ph - Math.min(v, top) / top * ph;
+  let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="戰功總量與換兵比時間軸">`;
+  s += `<text class="ax" x="${m.l}" y="12" text-anchor="middle">戰功</text><text class="ax" x="${W - m.r}" y="12" text-anchor="middle">換兵比</text>`;
+  for (let k = 0; k <= 4; k++) {
+    const y = yM(step * k);
+    s += `<line class="gl" x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}"/>`;
+    s += `<text class="ax" x="${m.l - 6}" y="${y + 4}" text-anchor="end">${wan(step * k)}</text>`;
+    s += `<text class="ax" x="${W - m.r + 6}" y="${y + 4}">${rxTick(top, k)}</text>`;
+  }
+  if (!day) { // 日期分隔
+    items.forEach((it, i) => {
+      if (i === 0 || it.day !== items[i - 1].day) {
+        const sx = m.l + band * i;
+        if (i) s += `<line class="sep" x1="${sx}" x2="${sx}" y1="${m.t}" y2="${m.t + ph}"/>`;
+        s += `<text class="ax" x="${sx + 4}" y="${m.t + 12}" font-weight="600">${mdOf(it.day)}</text>`;
+      }
+    });
+  }
+  items.forEach((it, i) => {
+    const y = yM(it.merit);
+    s += `<rect class="bar" style="fill:${day ? "var(--accent)" : teamColor(it.team)}" x="${x(i) - bw / 2}" y="${y}" width="${bw}" height="${m.t + ph - y}" rx="2"><title>${it.title}</title></rect>`;
+    if (day) s += `<text class="vl" x="${x(i)}" y="${y - 6}" text-anchor="middle">${fmt(it.merit)}</text>`;
+  });
+  s += `<line class="ref" x1="${m.l}" x2="${W - m.r}" y1="${yR(1)}" y2="${yR(1)}"/>`;
+  s += `<text class="rl" x="${W - m.r - 4}" y="${yR(1) - 6}" text-anchor="end">1＝打平</text>`;
+  s += `<polyline class="rate" points="${items.map((it, i) => `${x(i)},${yR(it.ex)}`).join(" ")}"/>`;
+  items.forEach((it, i) => {
+    s += `<circle class="pt" cx="${x(i)}" cy="${yR(it.ex)}" r="${day ? 5 : 3.5}"><title>${it.title}</title></circle>`;
+    if (day) s += `<text class="rl" x="${x(i) + 10}" y="${yR(it.ex) + 4}">${rxTxt(it.ex)}</text>`;
+  });
+  const every = Math.max(1, Math.ceil(n * 42 / pw));
+  items.forEach((it, i) => {
+    if (i % every) return;
+    s += `<text class="ax" x="${x(i)}" y="${m.t + ph + 16}" text-anchor="middle"${day ? ' font-weight="600"' : ""}>${it.label}</text>`;
+    if (it.sub) s += `<text class="ax" x="${x(i)}" y="${m.t + ph + 32}" text-anchor="middle">${it.sub}</text>`;
+  });
+  el.innerHTML = s + "</svg>";
+}
+function renderTimeline() {
+  const show = scope === "all";
+  document.getElementById("timePanel").hidden = !show;
+  document.getElementById("cTime").hidden = !show;
+  if (!show) return;
+  document.querySelectorAll("#timePanel .seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tm === timeMode)));
+  const all = agg(RECS);
+  if (timeMode === "day") drawDayCombo(document.getElementById("chTime"), timeItems(), all.effRate);
+  else drawCombo(document.getElementById("chTime"), timeItems(), all.effRate);
+  document.getElementById("tlLegend").innerHTML = teamLegend(RECS, timeMode === "day");
+
+  const first = RECS[0], last = RECS[RECS.length - 1];
+  const ds = DAYS.map(d => ({ d, s: agg(RECS.filter(r => r.day === d)), acts: ACTIONS.filter(a => a.day === d).length }));
+  const range = `統計區間為 ${first.md} ${first.hm} 至 ${last.md} ${last.hm}（台灣時間），共 ${DAYS.length} 天、${RECS.length} 場、${ACTIONS.length} 次行動。`;
+  const perDay = ds.map(x => `${mdOf(x.d)}：${x.s.n} 場、${x.acts} 次行動、戰功 ${fmt(x.s.merit)}、每場 ${fmt(x.s.merit / x.s.n)}、換兵比 ${rxTxt(rxOf(x.s))}`).join("；") + "。";
+  let head;
+  if (ds.length < 2) head = `目前只有 ${mdOf(DAYS[0])} 一天的資料`;
+  else {
+    const p = ds[ds.length - 2], c = ds[ds.length - 1];
+    const pe = rxOf(p.s), ce = rxOf(c.s);
+    const dm = (c.s.merit - p.s.merit) / p.s.merit, de = ce - pe, cd = mdOf(c.d);
+    head = (dm < 0 && de < 0 ? `${cd} 戰功與換兵比雙雙下滑`
+      : dm >= 0 && de >= 0 ? `${cd} 戰功與換兵比同步上升`
+      : `${cd} 戰功${dm >= 0 ? "上升" : "下滑"}、換兵比${de >= 0 ? "上升" : "下滑"}`) +
+      `（戰功 ${sgn(dm)}，換兵比 ${rxTxt(pe)} → ${rxTxt(ce)}）`;
+  }
+  const noRep = RANK_DAYS.filter(d => !DAYS.includes(d)).map(mdOf);
+  document.getElementById("cTime").innerHTML = CONC(head, range + perDay +
+    `戰功排名：${rankText(member, null).path}。` +
+    `戰功總量受出戰場數影響，比較效率要看每場戰功與換兵比（1 為打平，越高代表每損失一兵換到越多敵兵）。${mdOf(last.day)} 的資料截至查詢時最後一筆 ${last.hm}，當天可能尚未完整。` +
+    (noRep.length ? `${noRep.join("、")} 沒有收集到戰報，只有排名資料。` : ""));
+}
+
+// ---------- 1. 總覽：戰功獲取 ----------
+function renderOverview() {
+  const recs = sRecs(), acts = sActs(), s = agg(recs);
+  document.getElementById("lbOv").textContent = `區間：${scopeText()}・${s.n} 場・${acts.length} 次行動`;
+  const base = scope === "all" ? null : agg(RECS);
+  document.getElementById("kpiLabel").textContent = base ? `${scopeText()}｜${s.n} 場・與全部 ${base.n} 場比較` : `全部｜${s.n} 場`;
+  const hlDay = scope === "all" ? null : scope;
+  document.getElementById("kpiOv").innerHTML = (s.n ? kpisOf(s, base) : "") + rankKpi(member, hlDay);
+  // 單日：隊伍戰功長條與戰功排名合在同一張逐日圖（「全部」時已在時間軸上）
+  const showDay = scope !== "all";
+  document.getElementById("dayPanel").hidden = !showDay;
+  document.getElementById("cRank").hidden = !showDay;
+  if (showDay) {
+    document.getElementById("daySub").textContent = `${scopeText()} 為本日（底色標示），前後日期供比較`;
+    drawDayCombo(document.getElementById("chDay"), dayItems(), agg(RECS).effRate, scope);
+    document.getElementById("dayLegend").innerHTML = teamLegend(recs, true);
+  }
+  const rt = rankText(member, hlDay);
+  const topT = groupBy(recs, r => r.team).sort((a, b) => b.s.n - a.s.n)[0];
+  document.getElementById("cRank").innerHTML = CONC(rt.head,
+    (topT ? `出戰最多的是 ${TEAMS[topT.k].name}：${topT.s.n} 場（佔 ${pct(topT.s.n / s.n)}），戰功 ${fmt(topT.s.merit)}（佔 ${pct(s.merit ? topT.s.merit / s.merit : 0)}）。` : "") + rt.detail);
+  const color = { W: "var(--win)", T: "var(--tie)", L: "var(--loss)" };
+  const src = ["W", "T", "L"].map(k => {
+    const v = recs.filter(r => r.o === k);
+    return { k, n: v.length, m: v.reduce((x, r) => x + (r.merit || 0), 0) };
+  });
+  document.getElementById("chMerit").innerHTML = s.n ? src.map(x => {
+    const share = s.merit ? x.m / s.merit : 0;
+    return `<div class="mb"><span class="${x.k}">${RL[x.k]}</span><div class="trk"><div class="f" style="width:${share * 100}%;background:${color[x.k]}"></div></div>` +
+      `<span class="val">${fmt(x.m)}（${pct(share)}）</span></div>`;
+  }).join("") + `<div class="sub">每場平均：${src.map(x => `${RL[x.k]} ${fmt(x.n ? x.m / x.n : 0)}`).join("｜")}</div>` : `<div class="sub">此區間沒有戰報</div>`;
+
+  const max = Math.max(1, ...src.map(x => x.n));
+  document.getElementById("chOutcome").innerHTML = ["W", "T", "L"].map(k => {
+    const list = recs.filter(r => r.o === k), good = list.filter(r => r.eff).length, bad = list.length - good;
+    return `<div class="st"><span class="${k}">${RL[k]}</span><div class="trk">` +
+      `<div class="seg-good" style="width:${good / max * 100}%"></div><div class="seg-bad" style="width:${bad / max * 100}%"></div></div>` +
+      `<span class="val">${good} / ${list.length} 有效</span></div>`;
+  }).join("");
+
+  if (!s.n) { document.getElementById("cOv").innerHTML = CONC("此區間沒有戰報。"); return; }
+  const perRep = s.merit / s.n, ally = ALLY[scope] ?? ALLY.all; // 沒有當日全盟快照時，以全部區間平均比較
+  const diff = (perRep - ally) / ally;
+  const w = src[0], t = src[1];
+  const tieNote = t.n && t.m / t.n > (w.n ? w.m / w.n : 0)
+    ? "平手的每場戰功比勝場高，這多半來自八回合拉鋸，戰功高不代表划算，要搭配換兵比看。" : "";
+  let cmp = "";
+  if (base) {
+    const d = (perRep - perRepOf(base)) / perRepOf(base);
+    cmp = `與全部相比，每場戰功 ${d >= 0 ? "+" : ""}${pct(d)}，換兵比 ${base.ex.toFixed(2)} → ${s.ex.toFixed(2)}，有效場佔比 ${pct(base.effRate)} → ${pct(s.effRate)}。`;
+  }
+  const level = diff >= 0.15 ? "明顯偏強" : diff >= 0 ? "略優於全盟" : diff > -0.15 ? "略低於全盟" : "偏弱";
+  document.getElementById("cOv").innerHTML = CONC(
+    `戰功獲取能力${level}：每場 ${fmt(perRep)} 戰功，${diff >= 0 ? "高於" : "低於"}全盟平均 ${pct(Math.abs(diff))}`,
+    cmp +
+    `${scopeText()}區間 ${s.n} 場、${acts.length} 次行動共取得 <b>${fmt(s.merit)}</b> 戰功，每次行動 ${fmt(s.merit / acts.length)}，每死千兵換 ${fmt(s.merit / s.fd * 1000)} 戰功（全盟平均每場 ${fmt(ally)}）。` +
+    `戰功有 ${pct(s.merit ? w.m / s.merit : 0)} 來自勝場、${pct(s.merit ? t.m / s.merit : 0)} 來自平手。${tieNote}`);
+}
+
+// ---------- 2. 戰報分析 ----------
+function teamStats(recs) {
+  const tot = agg(recs);
+  return Object.keys(TEAMS).map(k => {
+    const s = agg(recs.filter(r => r.team === k));
+    const ms = tot.merit ? s.merit / tot.merit : 0, ls = tot.fL ? s.fL / tot.fL : 0;
+    return { k, s, ms, ls, cr: ls ? ms / ls : 0 };
+  }).filter(t => t.s.n);
+}
+function renderAnalysis() {
+  const recs = sRecs(), acts = sActs();
+  document.getElementById("lbAn").textContent = `區間：${scopeText()}・${acts.length} 次行動`;
+  const ts = teamStats(recs);
+
+  document.getElementById("chTeam").innerHTML = ts.map(({ k, s, ms, ls, cr }) => {
+    const bar = (l, v, c) => `<div class="pb"><span>${l}</span><div class="trk"><div class="f" style="width:${Math.min(v, 1) * 100}%;background:${c}"></div></div><span class="val">${pct(v)}</span></div>`;
+    return `<div class="team-block"><div class="team-name">${dotOf(k)}${TEAMS[k].name}<span class="ex ${okc(s.ex)}">換兵比 ${s.ex.toFixed(2)}</span></div>` +
+      bar("有效場佔比", s.effRate, "var(--win)") + bar("戰功佔比", ms, "var(--accent)") + bar("兵損佔比", ls, "var(--loss)") +
+      `<div class="sub">${s.n} 場｜${resText(s)}｜貢獻÷消耗 <b class="${okc(cr)}">${cr.toFixed(2)}</b></div></div>`;
+  }).join("") || `<div class="sub">此區間沒有戰報</div>`;
+
+  document.getElementById("chAct").innerHTML = acts.map(a =>
+    dvRow(`${dotOf(a.team)}<span>${scope === "all" ? a.md + " " : ""}${a.hm} ${TEAMS[a.team].short}</span>`,
+      a.ex, `${a.n} 份戰報｜${resText(a)}｜我方兵損 ${fmt(a.fL)}｜敵方兵損 ${fmt(a.eL)}`)).join("") || `<div class="sub">此區間沒有行動</div>`;
+
+  // 結論：哪一隊比較好
+  let c;
+  if (!ts.length) c = CONC("此區間沒有戰報。");
+  else if (ts.length === 1) {
+    const t = ts[0];
+    c = CONC(`只有 ${TEAMS[t.k].short} 出戰，整體${t.s.ex >= 1 ? "划算" : "吃虧"}（換兵比 ${t.s.ex.toFixed(2)}）`,
+      `${scopeText()}區間 ${TEAMS[t.k].name} ${t.s.n} 場，有效場佔比 ${pct(t.s.effRate)}，戰功 ${fmt(t.s.merit)}。`);
+  } else {
+    const srt = ts.slice().sort((x, y) => y.s.ex - x.s.ex);
+    const a = srt[0], b = srt[srt.length - 1];
+    const all = ts.length === 2 ? "兩隊" : `${ts.length} 隊`;
+    const vs = `換兵比 ${a.s.ex.toFixed(2)} 對 ${b.s.ex.toFixed(2)}`;
+    const head = b.s.ex >= 1 ? `${all}都划算，${TEAMS[a.k].short}最好（${vs}）`
+      : a.s.ex < 1 ? `${all}都吃虧，${TEAMS[a.k].short}相對最好（${vs}）`
+      : `${TEAMS[a.k].short}表現較好，${TEAMS[b.k].short}整體吃虧（${vs}）`;
+    const mid = srt.slice(1, -1).map(m => `${TEAMS[m.k].short} 換兵比 ${m.s.ex.toFixed(2)}（${m.s.n} 場）`).join("、");
+    let d = (mid ? `其餘：${mid}。` : "") + `有效場佔比 ${pct(a.s.effRate)} 對 ${pct(b.s.effRate)}。` +
+      `${TEAMS[a.k].short} 拿到 ${pct(a.ms)} 戰功、承擔 ${pct(a.ls)} 兵損（貢獻÷消耗 ${a.cr.toFixed(2)}）；` +
+      `${TEAMS[b.k].short} 拿到 ${pct(b.ms)} 戰功、承擔 ${pct(b.ls)} 兵損（${b.cr.toFixed(2)}）。`;
+    const worst = acts.filter(x => x.team === b.k).sort((x, y) => x.ex - y.ex)[0];
+    if (worst && worst.ex < 1) d += `${TEAMS[b.k].short}吃虧最重的行動是 ${worst.md} ${worst.hm}（換兵比 ${worst.ex.toFixed(2)}，${resText(worst)}）。`;
+    c = CONC(head, d);
+  }
+  document.getElementById("cTeam").innerHTML = c;
+
+  // 明細：好打與難打前 5
+  const r = rankOpp(recs);
+  const li = (x, i) => `<li><span class="n">${i + 1}</span><span>${x.k}${x.s.n < 2 ? '<span class="tag small">樣本少</span>' : ""}` +
+    `<span class="meta">${x.s.n} 場｜${resText(x.s)}｜對上：${teamCount(x.v)}</span></span><span class="x ${okc(x.s.ex)}">${exf(x.s.ex)}</span></li>`;
+  document.getElementById("goodList").innerHTML = r.good.map(li).join("") || `<li class="sub">此區間沒有換兵比 ≥ 1 的對手</li>`;
+  document.getElementById("badList").innerHTML = r.bad.map(li).join("") || `<li class="sub">此區間沒有換兵比 &lt; 1 的對手</li>`;
+  const nBad = r.all.filter(x => x.s.ex < 1).length;
+  document.getElementById("cDetail").innerHTML = !r.all.length ? CONC("此區間沒有戰報。") : CONC(
+    r.bad[0] ? `最難打：${r.bad[0].k}（換兵比 ${exf(r.bad[0].s.ex)}，${nTxt(r.bad[0].s)}）` : "此區間沒有換兵比低於 1 的對手",
+    (r.good[0] ? `最好打的是 <b>${r.good[0].k}</b>（換兵比 ${exf(r.good[0].s.ex)}，${nTxt(r.good[0].s)}）。` : "此區間沒有換兵比 ≥ 1 的對手。") +
+    `${r.all.length} 個對手隊伍中有 ${nBad} 個換兵比低於 1。`);
+
+  renderDrill(acts);
+}
+
+function repTable(reps) {
+  return `<div class="tbl"><table><thead><tr><th>時間</th><th>結果</th><th>對手隊伍</th><th>對手</th><th class="num">戰功</th>` +
+    `<th class="num">我方 戰前→戰後</th><th class="num">戰後兵力比</th><th class="num">敵方 戰前→戰後</th><th class="num">換兵比</th><th>有效</th></tr></thead><tbody>` +
+    reps.map(r => `<tr><td>${r.hm}</td><td class="${r.o}">${RL[r.o]}</td><td>${r.oppT}</td><td>${r.oppP}</td><td class="num">${fmt(r.merit)}</td>` +
+      `<td class="num">${fmt(r.fI)} → ${fmt(r.fR)}</td><td class="num">${pct(r.fR / r.fI)}</td><td class="num">${fmt(r.eI)} → ${fmt(r.eR)}</td>` +
+      `<td class="num ${okc(r.ex)}">${exf(r.ex)}</td><td class="${okc(r.ex)}">${r.eff ? "有效" : "無效"}</td></tr>`).join("") +
+    `</tbody></table></div>`;
+}
+function resChips(s) {
+  return [s.W && `<span class="W">${s.W}勝</span>`, s.T && `<span class="T">${s.T}平</span>`, s.L && `<span class="L">${s.L}敗</span>`].filter(Boolean).join(" ");
+}
+function renderDrill(actsAll) {
+  const html = Object.keys(TEAMS).map(k => {
+    const acts = actsAll.filter(a => a.team === k);
+    const recs = acts.flatMap(a => a.reps);
+    if (!recs.length) return "";
+    const s = agg(recs);
+    const effActs = acts.filter(a => a.ex >= 1).length;
+    // 本隊的常遇對手、兵損來源與提醒
+    const g = groupBy(recs, r => r.oppT);
+    const freq = g.slice().sort((a, b) => b.s.n - a.s.n || b.s.fL - a.s.fL).slice(0, 5);
+    const cost = g.slice().sort((a, b) => b.s.fL - a.s.fL).slice(0, 5);
+    const liF = (x, i) => `<li><span class="n">${i + 1}</span><span>${x.k}<span class="meta">${x.s.n} 場（佔本隊 ${pct(x.s.n / s.n)}）｜${resText(x.s)}</span></span><span class="x ${okc(x.s.ex)}">${x.s.ex.toFixed(2)}</span></li>`;
+    const liC = (x, i) => `<li><span class="n">${i + 1}</span><span>${x.k}<span class="meta">我方損失 ${fmt(x.s.fL)}（佔本隊 ${pct(x.s.fL / s.fL)}）｜對方損失 ${fmt(x.s.eL)}</span></span><span class="x ${okc(x.s.ex)}">${x.s.ex.toFixed(2)}</span></li>`;
+    const sumHtml = `<div class="tsum">${teamReminder(s, g, acts)}<div class="panel-grid even">` +
+      `<div class="panel"><div class="phead"><h3>常遇對手</h3><span class="sub">依場數，右側為換兵比</span></div><ol class="rank">${freq.map(liF).join("")}</ol></div>` +
+      `<div class="panel"><div class="phead"><h3>兵損來源</h3><span class="sub">依我方兵損，右側為換兵比</span></div><ol class="rank">${cost.map(liC).join("")}</ol></div>` +
+      `</div><h3 class="acts">行動（點開看每份戰報）</h3></div>`;
+    const actHtml = acts.map(a => `<details class="lv2"><summary><span class="chev">›</span>` +
+      `<span>${a.md} ${a.hm}</span><span class="mini"><span>${a.n} 份</span><span>${resChips(a)}</span>` +
+      `<span class="${okc(a.ex)}">換兵比 <b>${a.ex.toFixed(2)}</b></span>` +
+      `<span class="tag ${okc(a.ex)}">${a.ex >= 1 ? "有效" : "無效"}</span><span class="sub">戰功 ${fmt(a.merit)}</span></span></summary>` +
+      `<div class="body">${repTable(a.reps)}</div></details>`).join("");
+    return `<details class="lv1" open><summary><div class="sum-top"><span class="chev">›</span>${dotOf(k)}${TEAMS[k].name}` +
+      `<span class="sub" style="font-weight:400">（${TEAMS[k].gens.join("、")}）</span></div>` +
+      `<div class="chips"><span>行動 <b>${acts.length}</b>（有效 ${effActs}）</span><span>戰報 <b>${s.n}</b></span><span>${resChips(s)}</span>` +
+      `<span>換兵比 <b class="${okc(s.ex)}">${s.ex.toFixed(2)}</b></span><span>有效場佔比 <b>${pct(s.effRate)}</b></span>` +
+      `<span>戰後兵力比 <b>${pct(s.rem)}</b></span><span>戰功 <b>${fmt(s.merit)}</b></span></div></summary>` +
+      `<div class="body">${sumHtml}${actHtml}</div></details>`;
+  }).join("");
+  document.getElementById("drill").innerHTML = html || `<div class="sub">此區間沒有戰報</div>`;
+}
+// 隊伍提醒：最重要的一件事放第一行，斷行後說明
+function teamReminder(s, g, acts) {
+  const costly = g.slice().sort((a, b) => b.s.fL - a.s.fL)[0];
+  const most = g.slice().sort((a, b) => b.s.n - a.s.n || b.s.fL - a.s.fL)[0];
+  const badN = g.filter(x => x.s.ex < 1 && x.s.n >= 2).sort((a, b) => b.s.fL - a.s.fL)[0];
+  const head = costly.s.ex < 1
+    ? `兵損主要來自 ${costly.k}，而且換得吃虧（換兵比 ${costly.s.ex.toFixed(2)}，佔本隊兵損 ${pct(costly.s.fL / s.fL)}）`
+    : badN ? `留意 ${badN.k}：換兵比 ${badN.s.ex.toFixed(2)}（${badN.s.n} 場，佔本隊兵損 ${pct(badN.s.fL / s.fL)}）`
+    : `常遇對手都換得划算，最大兵損來源 ${costly.k} 換兵比 ${costly.s.ex.toFixed(2)}`;
+  let d = `最常遇到 ${most.k}：${most.s.n} 場（佔本隊 ${pct(most.s.n / s.n)}），換兵比 ${most.s.ex.toFixed(2)}。`;
+  if (costly.k !== most.k) d += `兵損最多的是 ${costly.k}：我方損失 ${fmt(costly.s.fL)}，對方損失 ${fmt(costly.s.eL)}。`;
+  const worst = acts.slice().sort((a, b) => a.ex - b.ex)[0];
+  if (worst && worst.ex < 1) d += `吃虧最重的行動是 ${worst.md} ${worst.hm}（換兵比 ${worst.ex.toFixed(2)}，${resText(worst)}）。`;
+  if (s.n < 15) d += "本隊場數不多，僅供參考。";
+  return `<div class="concl warn"><span class="k">提醒</span><span class="hl">${head}</span><div class="dt">${d}</div></div>`;
+}
+
+// ---------- 3. 對手隊伍 ----------
+function renderOpp() {
+  const recs = sRecs();
+  document.getElementById("lbOpp").textContent = `區間：${scopeText()}`;
+  document.getElementById("chOpp").innerHTML = oppChart(recs);
+  document.getElementById("oppBody").innerHTML = oppRows(recs);
+  const g = groupBy(recs, r => r.oppT);
+  if (!g.length) { document.getElementById("cOpp").innerHTML = CONC("此區間沒有戰報。"); return; }
+  const most = g.slice().sort((a, b) => b.s.n - a.s.n)[0];
+  const costly = g.slice().sort((a, b) => b.s.fL - a.s.fL)[0];
+  const tot = agg(recs);
+  document.getElementById("cOpp").innerHTML = CONC(
+    `兵損最大來源：${costly.k}（佔我方兵損 ${pct(costly.s.fL / tot.fL)}）`,
+    `對 ${costly.k} 我方損失 ${fmt(costly.s.fL)}、對方損失 ${fmt(costly.s.eL)}，換兵比 <b class="${okc(costly.s.ex)}">${costly.s.ex.toFixed(2)}</b>。` +
+    (costly.k === most.k
+      ? `它也是最常遇到的對手：${most.s.n} 場（佔 ${pct(most.s.n / recs.length)}）。`
+      : `最常遇到的是 <b>${most.k}</b>：${most.s.n} 場（佔 ${pct(most.s.n / recs.length)}），換兵比 ${most.s.ex.toFixed(2)}。`) +
+    `${g.length} 個對手隊伍中有 ${g.filter(x => x.s.ex < 1).length} 個換兵比低於 1。`);
+}
+
+// ---------- 4. 武將查詢 ----------
+function renderGen() {
+  const g = document.getElementById("genSel").value;
+  const team = Object.keys(TEAMS).find(k => TEAMS[k].gens.includes(g));
+  const list = sRecs().filter(r => r.team === team);
+  document.getElementById("lbGen").textContent = `區間：${scopeText()}`;
+  document.getElementById("genNote").textContent = `所屬隊伍：${TEAMS[team].name}`;
+  document.getElementById("chGen").innerHTML = oppChart(list);
+  document.getElementById("genOpp").innerHTML = oppRows(list);
+  if (!list.length) {
+    document.getElementById("genKpi").innerHTML = "";
+    document.getElementById("cGen").innerHTML = CONC(`${g} 所屬的 ${TEAMS[team].name} 在此區間沒有戰報。`);
+    return;
+  }
+  const s = agg(list), r = rankOpp(list);
+  document.getElementById("genKpi").innerHTML = kpisOf(s);
+  let d = `${g} 所屬的 ${TEAMS[team].name}：${s.n} 場，有效場佔比 ${pct(s.effRate)}，每場戰功 ${fmt(s.merit / s.n)}。`;
+  const parts = [];
+  if (r.good[0]) parts.push(`對 ${r.good[0].k} 最划算（${exf(r.good[0].s.ex)}，${nTxt(r.good[0].s)}）`);
+  if (r.bad[0]) parts.push(`對 ${r.bad[0].k} 最吃虧（${exf(r.bad[0].s.ex)}，${nTxt(r.bad[0].s)}）`);
+  if (parts.length) d += parts.join("，") + "。";
+  if (s.n < 15) d += "場數不多，僅供參考。";
+  document.getElementById("cGen").innerHTML = CONC(`${TEAMS[team].short}整體${s.ex >= 1 ? "划算" : "吃虧"}（換兵比 ${s.ex.toFixed(2)}）`, d);
+}
+
+// ---------- 5. 戰報搜尋 ----------
+function renderSearch() {
+  const q = document.getElementById("q").value.trim();
+  const rows = sRecs().filter(r => !q || r.oppT.includes(q) || r.oppP.includes(q) || TEAMS[r.team].name.includes(q) || TEAMS[r.team].short.includes(q)).slice().reverse();
+  const s = agg(rows);
+  document.getElementById("lbSearch").textContent = `區間：${scopeText()}`;
+  document.getElementById("cSearch").innerHTML = !s.n ? CONC("沒有符合的戰報。") : CONC(
+    `${q ? `「${q}」` : "目前區間"}整體${s.ex >= 1 ? "划算" : "吃虧"}（換兵比 ${s.ex.toFixed(2)}）`,
+    `共 ${s.n} 場：${resText(s)}，有效 ${s.eff} 場（${pct(s.effRate)}），戰功合計 ${fmt(s.merit)}。`);
+  document.getElementById("repBody").innerHTML = rows.map(r => `<tr><td>${r.md} ${r.hm}</td><td>${TEAMS[r.team].short}</td><td class="${r.o}">${RL[r.o]}</td>` +
+    `<td>${r.oppT}</td><td>${r.oppP}</td><td class="num">${fmt(r.merit)}</td><td class="num">${pct(r.fR / r.fI)}</td><td class="num">${fmt(r.fL)}</td>` +
+    `<td class="num">${fmt(r.eL)}</td><td class="num ${okc(r.ex)}">${exf(r.ex)}</td><td class="${okc(r.ex)}">${r.eff ? "有效" : "無效"}</td></tr>`).join("");
+}
+
+// ---------- 6. 名單 ----------
+function renderRoster() {
+  const byMf = {};
+  ROSTER.forEach(r => (byMf[r[2]] = (byMf[r[2]] || 0) + 1));
+  const loaded = ROSTER.filter(r => r[7]);
+  const top = ROSTER.slice().sort((a, b) => a[5] - b[5]).slice(0, 3);
+  document.getElementById("cRoster").innerHTML = CONC(
+    `目前只有 ${loaded.map(r => r[1]).join("、")} 載入戰報，其餘 ${ROSTER.length - loaded.length} 位待抓取`,
+    `${ROSTER.length} 位成員都已比對到遊戲帳號；其餘成員串接戰報後就會有自己的專屬報表。` +
+    `門閥分布：${Object.keys(byMf).sort().map(k => `門閥 ${k} 有 ${byMf[k]} 人`).join("、")}。貢獻排名前三：${top.map(r => `${r[1]}（第 ${r[5]} 名）`).join("、")}。`);
+}
+
+// ---------- 0. 成員選擇（目前只有 IU 串接資料，其他成員顯示待載入）----------
+const DEFAULT_MEMBER = 17; // IU
+let member = DEFAULT_MEMBER, mfFilter = "all";
+const memberOf = n => ROSTER.find(r => r[0] === n);
+// 可搜尋的下拉選單：門閥篩選 + 輸入名稱，點選或按 Enter 開啟該成員的報表
+let typing = false, act = -1, pickList = [];
+const qEl = () => document.getElementById("nameQ"), ulEl = () => document.getElementById("mlist");
+function setOpen(o) {
+  ulEl().hidden = !o;
+  qEl().setAttribute("aria-expanded", String(o));
+  if (!o) qEl().removeAttribute("aria-activedescendant");
+}
+function renderPicker(open) {
+  const q = typing ? qEl().value.trim().toLowerCase() : "";
+  pickList = ROSTER.filter(r => (mfFilter === "all" || String(r[2]) === mfFilter) &&
+    (!q || r[1].toLowerCase().includes(q) || r[3].toLowerCase().includes(q)));
+  if (act >= pickList.length) act = pickList.length - 1;
+  document.getElementById("pkCount").textContent = `符合 ${pickList.length} / ${ROSTER.length} 位｜已有報表 ${ROSTER.filter(r => r[7]).length} 位`;
+  document.querySelectorAll("#mfSeg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mf === mfFilter)));
+  ulEl().innerHTML = pickList.map(([n, name, mf, game, , , , loaded], i) =>
+    `<li role="option" id="opt${n}" data-n="${n}" class="${i === act ? "act" : ""}${n === member ? " cur" : ""}" aria-selected="${n === member}">` +
+    `<span><b>${name}</b> <span class="sub">${game}</span></span><span class="sub">門閥 ${mf}｜<span class="${loaded ? "ok" : ""}">${loaded ? "已有報表" : "尚未載入"}</span></span></li>`).join("") ||
+    `<li class="sub empty">沒有符合的成員，請換個名稱或門閥</li>`;
+  if (act >= 0 && pickList[act]) {
+    qEl().setAttribute("aria-activedescendant", "opt" + pickList[act][0]);
+    document.getElementById("opt" + pickList[act][0]).scrollIntoView({ block: "nearest" });
+  }
+  if (open !== undefined) setOpen(open);
+}
+function pick(n) {
+  typing = false; act = -1;
+  setOpen(false);
+  selectMember(n, true);
+  qEl().value = memberOf(n)[1]; // 自己選的才填入名稱；其他方式切換時輸入框保持空白
+}
+function renderMember() {
+  const [, name, mf, game, grp, rank, power, loaded] = memberOf(member);
+  document.getElementById("rbName").textContent = `${name}（${game}）`;
+  document.getElementById("rbMeta").textContent = `門閥 ${mf}｜遊戲組別 ${grp}｜貢獻排名第 ${rank} 名｜戰力 ${fmt(power)}`;
+  document.getElementById("scopeSeg").hidden = !loaded;
+  document.getElementById("report").hidden = !loaded;
+  document.getElementById("emptyState").hidden = !!loaded;
+  document.getElementById("esTitle").textContent = `${name} 的報表尚未載入`;
+  if (loaded) { loadMember(member); renderAll(); }
+  else {
+    drawRank(document.getElementById("esRank"), member, null);
+    const rt = rankText(member, null);
+    document.getElementById("esConcl").innerHTML = CONC(rt.head, rt.detail);
+  }
+}
+function selectMember(n, scroll) {
+  if (!memberOf(n)) return;
+  member = n;
+  qEl().value = "";
+  try { history.replaceState(null, "", "#m" + n); } catch (e) { /* 預覽環境可能不允許，略過 */ }
+  renderPicker(); renderMember();
+  if (scroll) document.getElementById("rbar").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
+const memberFromHash = () => { const m = location.hash.match(/^#m(\d+)$/); return m ? +m[1] : null; };
+
+function renderAll() {
+  document.querySelectorAll("#scopeSeg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.scope === scope)));
+  renderTimeline(); renderOverview(); renderAnalysis(); renderOpp(); renderGen(); renderSearch();
+}
+
+// ---------- init ----------
+axis("axAct"); axis("axOpp"); axis("axGen");
+document.getElementById("mfSeg").innerHTML = ["all", ...[...new Set(ROSTER.map(r => String(r[2])))].sort()]
+  .map(k => `<button type="button" data-mf="${k}" aria-pressed="false">${k === "all" ? "全部" : "門閥 " + k}</button>`).join("");
+renderRoster();
+document.querySelectorAll("#mfSeg button").forEach(b => b.addEventListener("click", () => {
+  mfFilter = b.dataset.mf; act = -1; renderPicker(true); qEl().focus();
+}));
+qEl().addEventListener("focus", () => { typing = false; act = -1; qEl().select(); renderPicker(true); });
+qEl().addEventListener("click", () => { if (ulEl().hidden) renderPicker(true); });
+qEl().addEventListener("input", () => { typing = true; act = 0; renderPicker(true); });
+qEl().addEventListener("keydown", e => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (ulEl().hidden) { renderPicker(true); return; }
+    const d = e.key === "ArrowDown" ? 1 : -1;
+    act = Math.max(0, Math.min(pickList.length - 1, act + d));
+    renderPicker(true);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    const r = pickList[act >= 0 ? act : 0];
+    if (r && (act >= 0 || pickList.length === 1 || typing)) pick(r[0]);
+  } else if (e.key === "Escape") {
+    setOpen(false);
+  }
+});
+ulEl().addEventListener("mousedown", e => { const li = e.target.closest("li[data-n]"); if (li) { e.preventDefault(); pick(+li.dataset.n); } });
+document.addEventListener("mousedown", e => { if (!e.target.closest(".cbx") && !e.target.closest("#mfSeg")) setOpen(false); });
+document.getElementById("esBack").addEventListener("click", () => selectMember(DEFAULT_MEMBER, true));
+window.addEventListener("hashchange", () => { const n = memberFromHash(); if (n && n !== member) selectMember(n); });
+document.getElementById("scopeSeg").addEventListener("click", e => { const b = e.target.closest("button[data-scope]"); if (b) { scope = b.dataset.scope; renderAll(); } });
+document.querySelectorAll("#timePanel .seg button").forEach(b => b.addEventListener("click", () => { timeMode = b.dataset.tm; renderTimeline(); }));
+let rsz;
+window.addEventListener("resize", () => { clearTimeout(rsz); rsz = setTimeout(() => (memberOf(member)[7] ? (renderTimeline(), renderOverview()) : renderMember()), 150); });
+document.getElementById("genSel").addEventListener("change", renderGen);
+document.getElementById("q").addEventListener("input", renderSearch);
+document.getElementById("expandAll").addEventListener("click", () => document.querySelectorAll("#drill details").forEach(d => (d.open = true)));
+document.getElementById("collapseAll").addEventListener("click", () => document.querySelectorAll("#drill details").forEach(d => (d.open = false)));
+member = memberOf(memberFromHash()) ? memberFromHash() : DEFAULT_MEMBER;
+renderPicker(); renderMember();
+</script>
